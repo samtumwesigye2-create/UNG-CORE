@@ -8,11 +8,13 @@ from app.api.security import require_permission
 from app.core.config import settings
 from app.db.session import get_db
 from app.schemas.contracts import AuditEventIn, AuditEventOut, Principal, RelayEnvelope
+from app.schemas.control_plane import ConfigurationIn, DependencyIn, OrganizationIn, SystemIn
 from app.schemas.heartbeat import HeartbeatIn, ServiceHealthOut
 from app.schemas.incidents import IncidentOut, IncidentSummaryOut
 from app.schemas.registry import ServiceDiscoveryOut, ServiceRegistrationIn, ServiceRegistrationOut
 from app.schemas.workflows import WorkflowExecutionOut, WorkflowStartIn
 from app.services.audit import record_audit
+from app.services.control_plane import add_dependency, list_configuration, list_dependencies, list_organizations, list_systems, serialize_configuration, serialize_dependency, serialize_organization, serialize_system, upsert_configuration, upsert_organization, upsert_system
 from app.services.heartbeat import get_health_snapshot, record_heartbeat
 from app.services.incident_feed import incident_summary, list_incidents, serialize_incident
 from app.services.relay import publish
@@ -109,3 +111,45 @@ async def workflow(execution_id: str, db: AsyncSession = Depends(get_db), _: Pri
     if row is None:
         raise HTTPException(status_code=404, detail="workflow execution not found")
     return WorkflowExecutionOut(**serialize_workflow(row))
+
+@router.put("/v1/organizations/{organization_key}")
+async def register_organization(organization_key: str, body: OrganizationIn, db: AsyncSession = Depends(get_db), _: Principal = Depends(require_permission("ung.core.control.write"))):
+    if organization_key.upper() != body.organization_key.upper():
+        raise HTTPException(status_code=400, detail="organization_key path/body mismatch")
+    row = await upsert_organization(db, body.model_copy(update={"organization_key": organization_key.upper()}))
+    return serialize_organization(row)
+
+@router.get("/v1/organizations")
+async def organizations(db: AsyncSession = Depends(get_db), _: Principal = Depends(require_permission("ung.core.control.read"))):
+    return [serialize_organization(row) for row in await list_organizations(db)]
+
+@router.put("/v1/systems/{system_key}")
+async def register_system(system_key: str, body: SystemIn, db: AsyncSession = Depends(get_db), _: Principal = Depends(require_permission("ung.core.control.write"))):
+    if system_key.upper() != body.system_key.upper():
+        raise HTTPException(status_code=400, detail="system_key path/body mismatch")
+    row = await upsert_system(db, body.model_copy(update={"system_key": system_key.upper()}))
+    return serialize_system(row)
+
+@router.get("/v1/systems")
+async def systems(db: AsyncSession = Depends(get_db), _: Principal = Depends(require_permission("ung.core.control.read"))):
+    return [serialize_system(row) for row in await list_systems(db)]
+
+@router.put("/v1/systems/{system_key}/dependencies")
+async def register_dependency(system_key: str, body: DependencyIn, db: AsyncSession = Depends(get_db), _: Principal = Depends(require_permission("ung.core.control.write"))):
+    if system_key.upper() == body.depends_on_system_key.upper():
+        raise HTTPException(status_code=400, detail="system cannot depend on itself")
+    row = await add_dependency(db, system_key, body)
+    return serialize_dependency(row)
+
+@router.get("/v1/dependencies")
+async def dependencies(system_key: str | None = None, db: AsyncSession = Depends(get_db), _: Principal = Depends(require_permission("ung.core.control.read"))):
+    return [serialize_dependency(row) for row in await list_dependencies(db, system_key)]
+
+@router.put("/v1/config/{scope}/{config_key}")
+async def set_configuration(scope: str, config_key: str, body: ConfigurationIn, db: AsyncSession = Depends(get_db), principal: Principal = Depends(require_permission("ung.core.config.write"))):
+    row = await upsert_configuration(db, scope, config_key, body, principal.subject)
+    return serialize_configuration(row)
+
+@router.get("/v1/config/{scope}")
+async def configuration(scope: str, db: AsyncSession = Depends(get_db), _: Principal = Depends(require_permission("ung.core.config.read"))):
+    return [serialize_configuration(row) for row in await list_configuration(db, scope)]
