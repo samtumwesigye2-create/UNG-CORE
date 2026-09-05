@@ -7,6 +7,7 @@ import httpx
 from app.db.session import SessionLocal
 from app.schemas.heartbeat import HeartbeatIn
 from app.services.heartbeat import record_heartbeat
+from app.services.incidents import open_or_update_incident, resolve_service_incidents
 from app.services.registry import list_services
 
 
@@ -34,6 +35,10 @@ async def poll_service(client: httpx.AsyncClient, service) -> None:
 
     async with SessionLocal() as db:
         await record_heartbeat(db, service.service_key, HeartbeatIn(status=status, latency_ms=latency_ms, details=details))
+        if status == "healthy":
+            await resolve_service_incidents(db, service.service_key)
+        else:
+            await open_or_update_incident(db, service.service_key, status, {**details, "latency_ms": latency_ms})
 
 
 async def poll_once() -> None:
