@@ -2,11 +2,27 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.security import current_principal, require_permission
+from app.core.hardening import production_readiness
 from app.db.session import get_db
 from app.schemas.contracts import Principal
+from app.services.alerting import alert_summary
+from app.services.approvals import approval_summary
+from app.services.audit import audit_summary
+from app.services.command_history import command_summary
 from app.services.control_plane import list_systems, serialize_system
+from app.services.event_delivery import delivery_summary
+from app.services.incident_feed import incident_summary
+from app.services.routing import gateway_routing_status
+from app.services.scheduler import job_summary
+from app.services.security_resilience import resilience_summary
+from app.services.telemetry import fleet_health_summary
 
 router = APIRouter(prefix="/v1/operator", tags=["operator"])
+
+
+def _allowed(principal: Principal, permission: str) -> bool:
+    permissions = set(principal.permissions)
+    return "ung.core.admin" in permissions or permission in permissions
 
 
 @router.get("/me")
@@ -22,25 +38,19 @@ async def operator_me(principal: Principal = Depends(current_principal)):
 
 @router.get("/capabilities")
 async def operator_capabilities(principal: Principal = Depends(current_principal)):
-    permissions = set(principal.permissions)
-    is_admin = "ung.core.admin" in permissions
-
-    def allowed(permission: str) -> bool:
-        return is_admin or permission in permissions
-
     return {
-        "control_center": allowed("ung.core.control.read"),
-        "registry_read": allowed("ung.core.registry.read"),
-        "registry_write": allowed("ung.core.registry.write"),
-        "incidents": allowed("ung.core.incidents.read"),
-        "approvals": allowed("ung.core.approvals.read"),
-        "jobs": allowed("ung.core.jobs.read"),
-        "audit": allowed("ung.core.audit.read"),
-        "configuration_read": allowed("ung.core.config.read"),
-        "configuration_write": allowed("ung.core.config.write"),
-        "workflow_execute": allowed("ung.core.workflows.execute"),
-        "event_publish": allowed("ung.core.events.publish"),
-        "recovery": allowed("ung.core.recovery.write"),
+        "control_center": _allowed(principal, "ung.core.control.read"),
+        "registry_read": _allowed(principal, "ung.core.registry.read"),
+        "registry_write": _allowed(principal, "ung.core.registry.write"),
+        "incidents": _allowed(principal, "ung.core.incidents.read"),
+        "approvals": _allowed(principal, "ung.core.approvals.read"),
+        "jobs": _allowed(principal, "ung.core.jobs.read"),
+        "audit": _allowed(principal, "ung.core.audit.read"),
+        "configuration_read": _allowed(principal, "ung.core.config.read"),
+        "configuration_write": _allowed(principal, "ung.core.config.write"),
+        "workflow_execute": _allowed(principal, "ung.core.workflows.execute"),
+        "event_publish": _allowed(principal, "ung.core.events.publish"),
+        "recovery": _allowed(principal, "ung.core.recovery.write"),
     }
 
 
@@ -68,6 +78,7 @@ async def operator_systems(
                 "launch_url": base_url if base_url else None,
             }
         )
+    systems.sort(key=lambda item: (item["display_name"].lower(), item["system_key"]))
     return {"count": len(systems), "systems": systems}
 
 
@@ -77,8 +88,6 @@ async def operator_workspace(
     principal: Principal = Depends(require_permission("ung.core.control.read")),
 ):
     systems_payload = await operator_systems(db=db, _=principal)
-    permissions = set(principal.permissions)
-    is_admin = "ung.core.admin" in permissions
     return {
         "operator": {
             "subject": principal.subject,
@@ -86,13 +95,43 @@ async def operator_workspace(
             "roles": sorted(set(principal.roles)),
         },
         "navigation": {
-            "operations": is_admin or "ung.core.control.read" in permissions,
-            "approvals": is_admin or "ung.core.approvals.read" in permissions,
-            "jobs": is_admin or "ung.core.jobs.read" in permissions,
-            "audit": is_admin or "ung.core.audit.read" in permissions,
-            "configuration": is_admin or "ung.core.config.read" in permissions,
-            "recovery": is_admin or "ung.core.recovery.write" in permissions,
+            "operations": True,
+            "incidents": _allowed(principal, "ung.core.incidents.read"),
+            "approvals": _allowed(principal, "ung.core.approvals.read"),
+            "jobs": _allowed(principal, "ung.core.jobs.read"),
+            "audit": _allowed(principal, "ung.core.audit.read"),
+            "configuration": _allowed(principal, "ung.core.config.read"),
+            "recovery": _allowed(principal, "ung.core.recovery.write"),
         },
         "systems": systems_payload["systems"],
         "system_count": systems_payload["count"],
     }
+
+
+@router.get("/dashboard")
+async def operator_dashboard(
+    db: AsyncSession = Depends(get_db),
+    principal: Principal = Depends(require_permission("ung.core.control.read")),
+):
+    """Permission-aware operational summary for the human Control Center."""
+    dashboard = {
+        "readiness": production_readiness(),
+        "gateway": await gateway_routing_status(db),
+        "telemetry": await fleet_health_summary(db),
+        "alerts": await alert_summary(db),
+        "event_delivery": await delivery_summary(db),
+    }
+
+    if _allowed(principal, "ung.core.incidents.read"):
+        dashboard["incidents"] = await incident_summary(db)
+    if _allowed(principal, "ung.core.approvals.read"):
+        dashboard["approvals"] = await approval_summary(db)
+    if _allowed(principal, "ung.core.jobs.read"):
+        dashboard["jobs"] = await job_summary(db)
+    if _allowed(principal, "ung.core.audit.read"):
+        dashboard["audit"] = await audit_summary(db)
+        dashboard["commands"] = await command_summary(db)
+    if _allowed(principal, "ung.core.recovery.write"):
+        dashboard["resilience"] = await resilience_summary(db)
+
+    return dashboard
