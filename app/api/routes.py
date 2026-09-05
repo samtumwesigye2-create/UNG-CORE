@@ -8,8 +8,10 @@ from app.api.security import require_permission
 from app.core.config import settings
 from app.db.session import get_db
 from app.schemas.contracts import AuditEventIn, AuditEventOut, Principal, RelayEnvelope
+from app.schemas.heartbeat import HeartbeatIn, ServiceHealthOut
 from app.schemas.registry import ServiceDiscoveryOut, ServiceRegistrationIn, ServiceRegistrationOut
 from app.services.audit import record_audit
+from app.services.heartbeat import get_health_snapshot, record_heartbeat
 from app.services.relay import publish
 from app.services.registry import get_service, list_services, serialize, upsert_service
 
@@ -64,3 +66,15 @@ async def discover_service(service_key: str, db: AsyncSession = Depends(get_db),
         raise HTTPException(status_code=404, detail="service not registered")
     data = serialize(row)
     return ServiceDiscoveryOut(service_key=data["service_key"], base_url=data["base_url"], version=data["version"], capabilities=data["capabilities"])
+
+@router.post("/v1/services/{service_key}/heartbeat", status_code=status.HTTP_202_ACCEPTED)
+async def heartbeat_service(service_key: str, body: HeartbeatIn, db: AsyncSession = Depends(get_db), principal: Principal = Depends(require_permission("ung.core.heartbeat.write"))):
+    try:
+        row = await record_heartbeat(db, service_key, body)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail="service not registered") from exc
+    return {"status": "accepted", "service_key": row.service_key, "last_seen_at": row.last_seen_at, "actor": principal.subject}
+
+@router.get("/v1/services/health/snapshot", response_model=list[ServiceHealthOut])
+async def service_health_snapshot(db: AsyncSession = Depends(get_db), _: Principal = Depends(require_permission("ung.core.registry.read"))):
+    return [ServiceHealthOut(**item) for item in await get_health_snapshot(db)]
