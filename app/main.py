@@ -1,9 +1,9 @@
 import asyncio
 from contextlib import asynccontextmanager, suppress
+from fnmatch import fnmatch
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, RedirectResponse
-from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 import app.models.audit  # noqa: F401
 import app.models.service_registry  # noqa: F401
@@ -64,13 +64,23 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title=settings.app_name, version=settings.service_version, lifespan=lifespan)
-trusted_hosts = [item.strip() for item in settings.trusted_hosts.split(",") if item.strip()]
-if trusted_hosts and trusted_hosts != ["*"]:
-    app.add_middleware(TrustedHostMiddleware, allowed_hosts=trusted_hosts)
+trusted_hosts = [item.strip().lower() for item in settings.trusted_hosts.split(",") if item.strip()]
+
+
+def _host_allowed(host: str) -> bool:
+    if not trusted_hosts or trusted_hosts == ["*"]:
+        return True
+    hostname = host.split(":", 1)[0].lower()
+    return any(fnmatch(hostname, pattern) for pattern in trusted_hosts)
 
 
 @app.middleware("http")
 async def hardening_middleware(request: Request, call_next):
+    if request.url.path not in {"/health", "/ready"}:
+        host = request.headers.get("host", "")
+        if not _host_allowed(host):
+            return JSONResponse(status_code=400, content={"detail": "invalid host header"})
+
     content_length = request.headers.get("content-length")
     if content_length and int(content_length) > settings.request_body_limit_bytes:
         return JSONResponse(status_code=413, content={"detail": "request body too large"})
