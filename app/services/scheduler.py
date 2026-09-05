@@ -6,7 +6,7 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.session import AsyncSessionLocal
+from app.db.session import SessionLocal
 from app.models.scheduled_job import ScheduledJob
 
 
@@ -49,14 +49,17 @@ async def enqueue_job(db: AsyncSession, *, action: str, actor_id: str, target_ty
         retry_delay_seconds=retry_delay_seconds, scheduled_for=when, next_attempt_at=when,
     )
     db.add(row)
-    await db.commit(); await db.refresh(row)
+    await db.commit()
+    await db.refresh(row)
     return row
 
 
 async def list_jobs(db: AsyncSession, status: str | None = None, system_key: str | None = None, limit: int = 100):
     stmt = select(ScheduledJob).order_by(ScheduledJob.created_at.desc()).limit(limit)
-    if status: stmt = stmt.where(ScheduledJob.status == status)
-    if system_key: stmt = stmt.where(ScheduledJob.system_key == system_key.upper())
+    if status:
+        stmt = stmt.where(ScheduledJob.status == status)
+    if system_key:
+        stmt = stmt.where(ScheduledJob.system_key == system_key.upper())
     return list((await db.scalars(stmt)).all())
 
 
@@ -66,38 +69,55 @@ async def get_job(db: AsyncSession, job_id: str):
 
 async def cancel_job(db: AsyncSession, job_id: str):
     row = await db.get(ScheduledJob, job_id)
-    if row is None: raise LookupError(job_id)
-    if row.status in {"succeeded", "failed", "cancelled"}: raise ValueError("job is already terminal")
-    row.status = "cancelled"; row.completed_at = _utcnow()
-    await db.commit(); await db.refresh(row); return row
+    if row is None:
+        raise LookupError(job_id)
+    if row.status in {"succeeded", "failed", "cancelled"}:
+        raise ValueError("job is already terminal")
+    row.status = "cancelled"
+    row.completed_at = _utcnow()
+    await db.commit()
+    await db.refresh(row)
+    return row
 
 
 async def mark_job_result(db: AsyncSession, job_id: str, *, succeeded: bool, error: str | None = None):
     row = await db.get(ScheduledJob, job_id)
-    if row is None: raise LookupError(job_id)
+    if row is None:
+        raise LookupError(job_id)
     row.attempts += 1
     if succeeded:
-        row.status = "succeeded"; row.completed_at = _utcnow(); row.last_error = None
+        row.status = "succeeded"
+        row.completed_at = _utcnow()
+        row.last_error = None
     elif row.attempts >= row.max_attempts:
-        row.status = "failed"; row.completed_at = _utcnow(); row.last_error = error
+        row.status = "failed"
+        row.completed_at = _utcnow()
+        row.last_error = error
     else:
-        row.status = "retry_wait"; row.last_error = error
+        row.status = "retry_wait"
+        row.last_error = error
         row.next_attempt_at = _utcnow() + timedelta(seconds=row.retry_delay_seconds)
-    await db.commit(); await db.refresh(row); return row
+    await db.commit()
+    await db.refresh(row)
+    return row
 
 
 async def claim_due_jobs(db: AsyncSession, limit: int = 20):
     now = _utcnow()
-    stmt = select(ScheduledJob).where(ScheduledJob.status.in_(["queued", "scheduled", "retry_wait"]), ScheduledJob.next_attempt_at <= now).order_by(ScheduledJob.next_attempt_at.asc()).limit(limit)
+    stmt = select(ScheduledJob).where(
+        ScheduledJob.status.in_(["queued", "scheduled", "retry_wait"]),
+        ScheduledJob.next_attempt_at <= now,
+    ).order_by(ScheduledJob.next_attempt_at.asc()).limit(limit)
     rows = list((await db.scalars(stmt)).all())
     for row in rows:
-        row.status = "running"; row.started_at = now
-    if rows: await db.commit()
+        row.status = "running"
+        row.started_at = now
+    if rows:
+        await db.commit()
     return rows
 
 
 async def execute_claimed_job(db: AsyncSession, row: ScheduledJob):
-    # Execution adapters are contract-driven; until an action adapter is registered, keep a deterministic control-plane result.
     payload = json.loads(row.payload_json or "{}")
     if payload.get("force_fail"):
         return await mark_job_result(db, row.job_id, succeeded=False, error="forced failure")
@@ -107,7 +127,7 @@ async def execute_claimed_job(db: AsyncSession, row: ScheduledJob):
 async def scheduler_loop(interval_seconds: int = 5):
     while True:
         try:
-            async with AsyncSessionLocal() as db:
+            async with SessionLocal() as db:
                 for row in await claim_due_jobs(db):
                     await execute_claimed_job(db, row)
         except Exception:
@@ -119,5 +139,6 @@ async def job_summary(db: AsyncSession):
     result = {"queued": 0, "scheduled": 0, "running": 0, "retry_wait": 0, "succeeded": 0, "failed": 0, "cancelled": 0, "total": 0}
     rows = (await db.execute(select(ScheduledJob.status, func.count()).group_by(ScheduledJob.status))).all()
     for status, count in rows:
-        result[status] = count; result["total"] += count
+        result[status] = count
+        result["total"] += count
     return result
