@@ -24,6 +24,7 @@ import app.models.security_resilience  # noqa: F401
 from app.api.routes import router
 from app.api.auth_routes import router as auth_router
 from app.api.control_center_routes import router as control_center_router
+from app.api.operator_routes import router as operator_router
 from app.api.gateway_routes import router as gateway_router
 from app.api.routing_routes import router as routing_router
 from app.api.telemetry_routes import router as telemetry_router
@@ -94,6 +95,7 @@ async def root():
 app.include_router(router)
 app.include_router(auth_router)
 app.include_router(control_center_router)
+app.include_router(operator_router)
 app.include_router(gateway_router)
 app.include_router(routing_router)
 app.include_router(telemetry_router)
