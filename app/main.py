@@ -11,6 +11,7 @@ import app.models.workflow  # noqa: F401
 import app.models.control_plane  # noqa: F401
 import app.models.config_history  # noqa: F401
 from app.api.routes import router
+from app.api.control_center_routes import router as control_center_router
 from app.core.config import settings
 from app.db.base import Base
 from app.db.session import engine
@@ -35,3 +36,4 @@ async def lifespan(_: FastAPI):
 
 app = FastAPI(title=settings.app_name, version=settings.service_version, lifespan=lifespan)
 app.include_router(router)
+app.include_router(control_center_router)
