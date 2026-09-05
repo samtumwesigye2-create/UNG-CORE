@@ -1,6 +1,6 @@
 import json
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -9,9 +9,11 @@ from app.core.config import settings
 from app.db.session import get_db
 from app.schemas.contracts import AuditEventIn, AuditEventOut, Principal, RelayEnvelope
 from app.schemas.heartbeat import HeartbeatIn, ServiceHealthOut
+from app.schemas.incidents import IncidentOut, IncidentSummaryOut
 from app.schemas.registry import ServiceDiscoveryOut, ServiceRegistrationIn, ServiceRegistrationOut
 from app.services.audit import record_audit
 from app.services.heartbeat import get_health_snapshot, record_heartbeat
+from app.services.incident_feed import incident_summary, list_incidents, serialize_incident
 from app.services.relay import publish
 from app.services.registry import get_service, list_services, serialize, upsert_service
 
@@ -47,6 +49,17 @@ async def publish_event(envelope: RelayEnvelope, principal: Principal = Depends(
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Data Relay unavailable") from exc
     return {"status": "accepted", "event_type": envelope.event_type, "subject": envelope.subject, "actor": principal.subject}
 
+@router.get("/v1/incidents/summary", response_model=IncidentSummaryOut)
+async def incidents_summary(db: AsyncSession = Depends(get_db), _: Principal = Depends(require_permission("ung.core.incidents.read"))):
+    return IncidentSummaryOut(**await incident_summary(db))
+
+@router.get("/v1/incidents", response_model=list[IncidentOut])
+async def incidents(status_filter: str | None = Query(default=None, alias="status"), service_key: str | None = None, limit: int = Query(default=100, ge=1, le=500), db: AsyncSession = Depends(get_db), _: Principal = Depends(require_permission("ung.core.incidents.read"))):
+    if status_filter not in {None, "open", "resolved"}:
+        raise HTTPException(status_code=400, detail="status must be open or resolved")
+    rows = await list_incidents(db, status_filter, service_key, limit)
+    return [IncidentOut(**serialize_incident(row)) for row in rows]
+
 @router.put("/v1/services/{service_key}", response_model=ServiceRegistrationOut)
 async def register_service(service_key: str, body: ServiceRegistrationIn, db: AsyncSession = Depends(get_db), principal: Principal = Depends(require_permission("ung.core.registry.write"))):
     if service_key.upper() != body.service_key.upper():
@@ -59,13 +72,9 @@ async def register_service(service_key: str, body: ServiceRegistrationIn, db: As
 async def services(db: AsyncSession = Depends(get_db), _: Principal = Depends(require_permission("ung.core.registry.read"))):
     return [ServiceRegistrationOut(**serialize(row)) for row in await list_services(db)]
 
-@router.get("/v1/services/{service_key}", response_model=ServiceDiscoveryOut)
-async def discover_service(service_key: str, db: AsyncSession = Depends(get_db), _: Principal = Depends(require_permission("ung.core.registry.read"))):
-    row = await get_service(db, service_key.upper())
-    if row is None or not row.enabled:
-        raise HTTPException(status_code=404, detail="service not registered")
-    data = serialize(row)
-    return ServiceDiscoveryOut(service_key=data["service_key"], base_url=data["base_url"], version=data["version"], capabilities=data["capabilities"])
+@router.get("/v1/services/health/snapshot", response_model=list[ServiceHealthOut])
+async def service_health_snapshot(db: AsyncSession = Depends(get_db), _: Principal = Depends(require_permission("ung.core.registry.read"))):
+    return [ServiceHealthOut(**item) for item in await get_health_snapshot(db)]
 
 @router.post("/v1/services/{service_key}/heartbeat", status_code=status.HTTP_202_ACCEPTED)
 async def heartbeat_service(service_key: str, body: HeartbeatIn, db: AsyncSession = Depends(get_db), principal: Principal = Depends(require_permission("ung.core.heartbeat.write"))):
@@ -75,6 +84,10 @@ async def heartbeat_service(service_key: str, body: HeartbeatIn, db: AsyncSessio
         raise HTTPException(status_code=404, detail="service not registered") from exc
     return {"status": "accepted", "service_key": row.service_key, "last_seen_at": row.last_seen_at, "actor": principal.subject}
 
-@router.get("/v1/services/health/snapshot", response_model=list[ServiceHealthOut])
-async def service_health_snapshot(db: AsyncSession = Depends(get_db), _: Principal = Depends(require_permission("ung.core.registry.read"))):
-    return [ServiceHealthOut(**item) for item in await get_health_snapshot(db)]
+@router.get("/v1/services/{service_key}", response_model=ServiceDiscoveryOut)
+async def discover_service(service_key: str, db: AsyncSession = Depends(get_db), _: Principal = Depends(require_permission("ung.core.registry.read"))):
+    row = await get_service(db, service_key.upper())
+    if row is None or not row.enabled:
+        raise HTTPException(status_code=404, detail="service not registered")
+    data = serialize(row)
+    return ServiceDiscoveryOut(service_key=data["service_key"], base_url=data["base_url"], version=data["version"], capabilities=data["capabilities"])
