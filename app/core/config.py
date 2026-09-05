@@ -18,7 +18,11 @@ class Settings(BaseSettings):
     security_headers_enabled: bool = True
     production_require_postgres: bool = True
     production_require_https_dependencies: bool = True
+    production_require_public_base_url: bool = True
     trusted_hosts: str = "*"
+    registry_bootstrap_enabled: bool = True
+    registry_bootstrap_json: str = ""
+    registry_bootstrap_strict: bool = True
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 

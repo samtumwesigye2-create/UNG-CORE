@@ -39,17 +39,19 @@ from app.core.hardening import production_readiness
 from app.db.base import Base
 from app.db.session import engine
 from app.services.health_poller import health_poll_loop
+from app.services.registry_bootstrap import bootstrap_registry
 from app.services.scheduler import scheduler_loop
 
 
 @asynccontextmanager
-async def lifespan(_: FastAPI):
+async def lifespan(app: FastAPI):
     readiness = production_readiness()
     if settings.environment.lower() == "production" and not readiness["ready"]:
         failed = ", ".join(item["key"] for item in readiness["checks"] if not item["ok"])
         raise RuntimeError(f"production readiness checks failed: {failed}")
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+    app.state.registry_bootstrap = await bootstrap_registry()
     poller = asyncio.create_task(health_poll_loop(max(10, settings.health_poll_interval_seconds))) if settings.health_poll_enabled else None
     scheduler = asyncio.create_task(scheduler_loop(max(1, settings.scheduler_interval_seconds))) if settings.scheduler_enabled else None
     yield
