@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import SessionLocal
 from app.models.scheduled_job import ScheduledJob
+from app.services.execution_adapters import execute_adapter
 
 
 def _utcnow():
@@ -119,8 +120,17 @@ async def claim_due_jobs(db: AsyncSession, limit: int = 20):
 
 async def execute_claimed_job(db: AsyncSession, row: ScheduledJob):
     payload = json.loads(row.payload_json or "{}")
-    if payload.get("force_fail"):
-        return await mark_job_result(db, row.job_id, succeeded=False, error="forced failure")
+    try:
+        await execute_adapter(
+            db,
+            action=row.action,
+            system_key=row.system_key,
+            payload=payload,
+            correlation_id=row.correlation_id,
+            job_id=row.job_id,
+        )
+    except Exception as exc:
+        return await mark_job_result(db, row.job_id, succeeded=False, error=str(exc))
     return await mark_job_result(db, row.job_id, succeeded=True)
 
 
