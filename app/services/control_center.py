@@ -52,3 +52,28 @@ async def dependency_impact(db: AsyncSession, system_key: str) -> dict:
                 impacted.add(dep.system_key)
                 frontier.append(dep.system_key)
     return {"system_key": key, "direct_dependents": direct, "all_impacted_systems": sorted(impacted), "impact_count": len(impacted)}
+
+
+async def ecosystem_topology(db: AsyncSession) -> dict:
+    systems = list((await db.execute(select(SystemRegistry).order_by(SystemRegistry.system_key))).scalars().all())
+    dependencies = list((await db.execute(select(SystemDependency).order_by(SystemDependency.system_key, SystemDependency.depends_on_system_key))).scalars().all())
+    nodes = [
+        {
+            "id": system.system_key,
+            "label": system.display_name,
+            "criticality": system.criticality,
+            "enabled": system.enabled,
+            "lifecycle_status": system.lifecycle_status,
+        }
+        for system in systems
+    ]
+    edges = [
+        {
+            "source": dependency.system_key,
+            "target": dependency.depends_on_system_key,
+            "type": dependency.dependency_type,
+            "required": dependency.required,
+        }
+        for dependency in dependencies
+    ]
+    return {"nodes": nodes, "edges": edges, "node_count": len(nodes), "edge_count": len(edges)}
