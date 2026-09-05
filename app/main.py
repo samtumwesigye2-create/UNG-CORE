@@ -1,7 +1,9 @@
 import asyncio
 from contextlib import asynccontextmanager, suppress
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 import app.models.audit  # noqa: F401
 import app.models.service_registry  # noqa: F401
@@ -31,20 +33,29 @@ from app.api.scheduler_routes import router as scheduler_router
 from app.api.event_delivery_routes import router as event_delivery_router
 from app.api.recovery_routes import router as recovery_router
 from app.core.config import settings
+from app.core.hardening import production_readiness
 from app.db.base import Base
 from app.db.session import engine
 from app.services.health_poller import health_poll_loop
 from app.services.scheduler import scheduler_loop
 
+
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    readiness = production_readiness()
+    if settings.environment.lower() == "production" and not readiness["ready"]:
+        failed = ", ".join(item["key"] for item in readiness["checks"] if not item["ok"])
+        raise RuntimeError(f"production readiness checks failed: {failed}")
+
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
     poller = None
     if settings.health_poll_enabled:
         poller = asyncio.create_task(health_poll_loop(max(10, settings.health_poll_interval_seconds)))
-    scheduler = asyncio.create_task(scheduler_loop(5))
+    scheduler = None
+    if settings.scheduler_enabled:
+        scheduler = asyncio.create_task(scheduler_loop(max(1, settings.scheduler_interval_seconds)))
 
     yield
 
@@ -55,7 +66,34 @@ async def lifespan(_: FastAPI):
                 await task
     await engine.dispose()
 
+
 app = FastAPI(title=settings.app_name, version=settings.service_version, lifespan=lifespan)
+
+trusted_hosts = [item.strip() for item in settings.trusted_hosts.split(",") if item.strip()]
+if trusted_hosts and trusted_hosts != ["*"]:
+    app.add_middleware(TrustedHostMiddleware, allowed_hosts=trusted_hosts)
+
+
+@app.middleware("http")
+async def hardening_middleware(request: Request, call_next):
+    content_length = request.headers.get("content-length")
+    if content_length and int(content_length) > settings.request_body_limit_bytes:
+        return JSONResponse(status_code=413, content={"detail": "request body too large"})
+    try:
+        response = await asyncio.wait_for(call_next(request), timeout=settings.request_timeout_seconds)
+    except asyncio.TimeoutError:
+        return JSONResponse(status_code=504, content={"detail": "request timed out"})
+    if settings.security_headers_enabled:
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Referrer-Policy"] = "no-referrer"
+        response.headers["Cache-Control"] = "no-store"
+        response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+        if settings.environment.lower() == "production":
+            response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    return response
+
+
 app.include_router(router)
 app.include_router(control_center_router)
 app.include_router(gateway_router)
