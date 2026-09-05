@@ -11,9 +11,11 @@ import app.models.workflow  # noqa: F401
 import app.models.control_plane  # noqa: F401
 import app.models.config_history  # noqa: F401
 import app.models.gateway  # noqa: F401
+import app.models.routing  # noqa: F401
 from app.api.routes import router
 from app.api.control_center_routes import router as control_center_router
 from app.api.gateway_routes import router as gateway_router
+from app.api.routing_routes import router as routing_router
 from app.core.config import settings
 from app.db.base import Base
 from app.db.session import engine
@@ -40,3 +42,4 @@ app = FastAPI(title=settings.app_name, version=settings.service_version, lifespa
 app.include_router(router)
 app.include_router(control_center_router)
 app.include_router(gateway_router)
+app.include_router(routing_router)
