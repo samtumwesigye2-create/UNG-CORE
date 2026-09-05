@@ -49,9 +49,10 @@ def classify_health(service: RegisteredService, heartbeat: ServiceHeartbeat | No
     if seen.tzinfo is None:
         seen = seen.replace(tzinfo=timezone.utc)
     age = max(0, int((_utcnow() - seen).total_seconds()))
-    if age >= OFFLINE_AFTER_SECONDS:
+    reported = (heartbeat.reported_status or "").lower()
+    if reported == "offline" or age >= OFFLINE_AFTER_SECONDS:
         state = "offline"
-    elif heartbeat.reported_status == "degraded" or age >= DEGRADED_AFTER_SECONDS:
+    elif reported in {"degraded", "warning"} or age >= DEGRADED_AFTER_SECONDS:
         state = "degraded"
     else:
         state = "healthy"
