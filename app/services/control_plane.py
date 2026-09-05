@@ -1,8 +1,9 @@
 import json
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.config_history import ConfigurationVersion
 from app.models.control_plane import ConfigurationRegistry, OrganizationRegistry, SystemDependency, SystemRegistry
 from app.schemas.control_plane import ConfigurationIn, DependencyIn, OrganizationIn, SystemIn
 
@@ -77,6 +78,12 @@ async def list_dependencies(db: AsyncSession, system_key: str | None = None) -> 
     return list(result.scalars().all())
 
 
+async def _next_config_version(db: AsyncSession, scope: str, config_key: str) -> int:
+    result = await db.execute(select(func.max(ConfigurationVersion.version)).where(ConfigurationVersion.scope == scope, ConfigurationVersion.config_key == config_key))
+    current = result.scalar_one_or_none()
+    return int(current or 0) + 1
+
+
 async def upsert_configuration(db: AsyncSession, scope: str, config_key: str, body: ConfigurationIn, updated_by: str) -> ConfigurationRegistry:
     scope = scope.upper()
     result = await db.execute(select(ConfigurationRegistry).where(ConfigurationRegistry.scope == scope, ConfigurationRegistry.config_key == config_key))
@@ -84,9 +91,12 @@ async def upsert_configuration(db: AsyncSession, scope: str, config_key: str, bo
     if row is None:
         row = ConfigurationRegistry(scope=scope, config_key=config_key, updated_by=updated_by)
         db.add(row)
-    row.value_json = _dump(body.value)
+    value_json = _dump(body.value)
+    row.value_json = value_json
     row.is_secret_reference = body.is_secret_reference
     row.updated_by = updated_by
+    version = await _next_config_version(db, scope, config_key)
+    db.add(ConfigurationVersion(scope=scope, config_key=config_key, version=version, value_json=value_json, changed_by=updated_by))
     await db.commit()
     await db.refresh(row)
     return row
@@ -95,6 +105,31 @@ async def upsert_configuration(db: AsyncSession, scope: str, config_key: str, bo
 async def list_configuration(db: AsyncSession, scope: str) -> list[ConfigurationRegistry]:
     result = await db.execute(select(ConfigurationRegistry).where(ConfigurationRegistry.scope == scope.upper()).order_by(ConfigurationRegistry.config_key))
     return list(result.scalars().all())
+
+
+async def list_configuration_history(db: AsyncSession, scope: str, config_key: str) -> list[ConfigurationVersion]:
+    result = await db.execute(select(ConfigurationVersion).where(ConfigurationVersion.scope == scope.upper(), ConfigurationVersion.config_key == config_key).order_by(ConfigurationVersion.version.desc()))
+    return list(result.scalars().all())
+
+
+async def rollback_configuration(db: AsyncSession, scope: str, config_key: str, version: int, changed_by: str) -> ConfigurationRegistry:
+    scope = scope.upper()
+    result = await db.execute(select(ConfigurationVersion).where(ConfigurationVersion.scope == scope, ConfigurationVersion.config_key == config_key, ConfigurationVersion.version == version))
+    historical = result.scalar_one_or_none()
+    if historical is None:
+        raise LookupError("configuration version not found")
+    current_result = await db.execute(select(ConfigurationRegistry).where(ConfigurationRegistry.scope == scope, ConfigurationRegistry.config_key == config_key))
+    row = current_result.scalar_one_or_none()
+    if row is None:
+        row = ConfigurationRegistry(scope=scope, config_key=config_key, updated_by=changed_by)
+        db.add(row)
+    row.value_json = historical.value_json
+    row.updated_by = changed_by
+    new_version = await _next_config_version(db, scope, config_key)
+    db.add(ConfigurationVersion(scope=scope, config_key=config_key, version=new_version, value_json=historical.value_json, changed_by=changed_by))
+    await db.commit()
+    await db.refresh(row)
+    return row
 
 
 def serialize_organization(row: OrganizationRegistry) -> dict:
@@ -111,3 +146,7 @@ def serialize_dependency(row: SystemDependency) -> dict:
 
 def serialize_configuration(row: ConfigurationRegistry) -> dict:
     return {"scope": row.scope, "config_key": row.config_key, "value": json.loads(row.value_json), "is_secret_reference": row.is_secret_reference, "updated_by": row.updated_by, "updated_at": row.updated_at}
+
+
+def serialize_configuration_version(row: ConfigurationVersion) -> dict:
+    return {"scope": row.scope, "config_key": row.config_key, "version": row.version, "value": json.loads(row.value_json), "changed_by": row.changed_by, "changed_at": row.changed_at}
