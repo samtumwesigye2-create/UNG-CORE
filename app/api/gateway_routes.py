@@ -6,6 +6,7 @@ from app.db.session import get_db
 from app.schemas.contracts import Principal
 from app.schemas.gateway import CorrelatedEventIn, GatewayRouteIn
 from app.services.gateway import list_correlated_events, list_routes, record_correlated_event, serialize_correlated_event, serialize_route, upsert_route
+from app.services.routing import correlate_and_route
 
 router = APIRouter(prefix="/v1")
 
@@ -25,7 +26,9 @@ async def gateway_routes(system_key: str | None = None, db: AsyncSession = Depen
 
 @router.post("/events/correlated", status_code=status.HTTP_202_ACCEPTED)
 async def create_correlated_event(body: CorrelatedEventIn, db: AsyncSession = Depends(get_db), _: Principal = Depends(require_permission("ung.core.events.correlate"))):
-    return serialize_correlated_event(await record_correlated_event(db, body))
+    row = await record_correlated_event(db, body)
+    routing = await correlate_and_route(db, row)
+    return {"event": serialize_correlated_event(row), "routing": routing}
 
 
 @router.get("/events/correlated")
