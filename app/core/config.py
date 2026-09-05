@@ -7,6 +7,7 @@ class Settings(BaseSettings):
     database_url: str = "sqlite+aiosqlite:///./ung_core.db"
     iam_base_url: str = "http://ung-iam:8000"
     data_relay_base_url: str = "http://data-relay:8000"
+    public_base_url: str = ""
     service_version: str = "0.1.0"
     health_poll_enabled: bool = True
     health_poll_interval_seconds: int = 30
