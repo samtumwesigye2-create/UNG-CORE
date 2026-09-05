@@ -23,7 +23,15 @@ def _challenge(verifier: str) -> str:
 
 
 def _callback_url(request: Request) -> str:
-    return str(request.base_url).rstrip("/") + CALLBACK_PATH
+    base = settings.public_base_url.strip().rstrip("/")
+    if not base:
+        forwarded_proto = request.headers.get("x-forwarded-proto", "").split(",", 1)[0].strip()
+        forwarded_host = request.headers.get("x-forwarded-host", "").split(",", 1)[0].strip()
+        if forwarded_proto and forwarded_host:
+            base = f"{forwarded_proto}://{forwarded_host}"
+        else:
+            base = str(request.base_url).rstrip("/")
+    return base + CALLBACK_PATH
 
 
 @router.get("/login", include_in_schema=False)
