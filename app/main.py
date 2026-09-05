@@ -22,6 +22,7 @@ import app.models.scheduled_job  # noqa: F401
 import app.models.event_delivery  # noqa: F401
 import app.models.security_resilience  # noqa: F401
 from app.api.routes import router
+from app.api.auth_routes import router as auth_router
 from app.api.control_center_routes import router as control_center_router
 from app.api.gateway_routes import router as gateway_router
 from app.api.routing_routes import router as routing_router
@@ -46,19 +47,11 @@ async def lifespan(_: FastAPI):
     if settings.environment.lower() == "production" and not readiness["ready"]:
         failed = ", ".join(item["key"] for item in readiness["checks"] if not item["ok"])
         raise RuntimeError(f"production readiness checks failed: {failed}")
-
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-
-    poller = None
-    if settings.health_poll_enabled:
-        poller = asyncio.create_task(health_poll_loop(max(10, settings.health_poll_interval_seconds)))
-    scheduler = None
-    if settings.scheduler_enabled:
-        scheduler = asyncio.create_task(scheduler_loop(max(1, settings.scheduler_interval_seconds)))
-
+    poller = asyncio.create_task(health_poll_loop(max(10, settings.health_poll_interval_seconds))) if settings.health_poll_enabled else None
+    scheduler = asyncio.create_task(scheduler_loop(max(1, settings.scheduler_interval_seconds))) if settings.scheduler_enabled else None
     yield
-
     for task in (poller, scheduler):
         if task is not None:
             task.cancel()
@@ -68,7 +61,6 @@ async def lifespan(_: FastAPI):
 
 
 app = FastAPI(title=settings.app_name, version=settings.service_version, lifespan=lifespan)
-
 trusted_hosts = [item.strip() for item in settings.trusted_hosts.split(",") if item.strip()]
 if trusted_hosts and trusted_hosts != ["*"]:
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=trusted_hosts)
@@ -100,6 +92,7 @@ async def root():
 
 
 app.include_router(router)
+app.include_router(auth_router)
 app.include_router(control_center_router)
 app.include_router(gateway_router)
 app.include_router(routing_router)
