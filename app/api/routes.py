@@ -11,11 +11,13 @@ from app.schemas.contracts import AuditEventIn, AuditEventOut, Principal, RelayE
 from app.schemas.heartbeat import HeartbeatIn, ServiceHealthOut
 from app.schemas.incidents import IncidentOut, IncidentSummaryOut
 from app.schemas.registry import ServiceDiscoveryOut, ServiceRegistrationIn, ServiceRegistrationOut
+from app.schemas.workflows import WorkflowExecutionOut, WorkflowStartIn
 from app.services.audit import record_audit
 from app.services.heartbeat import get_health_snapshot, record_heartbeat
 from app.services.incident_feed import incident_summary, list_incidents, serialize_incident
 from app.services.relay import publish
 from app.services.registry import get_service, list_services, serialize, upsert_service
+from app.services.workflows import get_workflow, list_workflows, serialize_workflow, start_workflow
 
 router = APIRouter()
 
@@ -91,3 +93,19 @@ async def discover_service(service_key: str, db: AsyncSession = Depends(get_db),
         raise HTTPException(status_code=404, detail="service not registered")
     data = serialize(row)
     return ServiceDiscoveryOut(service_key=data["service_key"], base_url=data["base_url"], version=data["version"], capabilities=data["capabilities"])
+
+@router.post("/v1/workflows", response_model=WorkflowExecutionOut, status_code=status.HTTP_202_ACCEPTED)
+async def create_workflow(body: WorkflowStartIn, db: AsyncSession = Depends(get_db), principal: Principal = Depends(require_permission("ung.core.workflows.execute"))):
+    row = await start_workflow(db, body, principal.subject)
+    return WorkflowExecutionOut(**serialize_workflow(row))
+
+@router.get("/v1/workflows", response_model=list[WorkflowExecutionOut])
+async def workflows(limit: int = Query(default=100, ge=1, le=500), db: AsyncSession = Depends(get_db), _: Principal = Depends(require_permission("ung.core.workflows.read"))):
+    return [WorkflowExecutionOut(**serialize_workflow(row)) for row in await list_workflows(db, limit)]
+
+@router.get("/v1/workflows/{execution_id}", response_model=WorkflowExecutionOut)
+async def workflow(execution_id: str, db: AsyncSession = Depends(get_db), _: Principal = Depends(require_permission("ung.core.workflows.read"))):
+    row = await get_workflow(db, execution_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="workflow execution not found")
+    return WorkflowExecutionOut(**serialize_workflow(row))
