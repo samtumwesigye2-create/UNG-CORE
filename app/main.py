@@ -9,6 +9,7 @@ import app.models.service_heartbeat  # noqa: F401
 import app.models.incident  # noqa: F401
 import app.models.workflow  # noqa: F401
 import app.models.control_plane  # noqa: F401
+import app.models.config_history  # noqa: F401
 from app.api.routes import router
 from app.core.config import settings
 from app.db.base import Base
