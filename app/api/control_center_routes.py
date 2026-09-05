@@ -6,6 +6,8 @@ from app.api.security import require_permission
 from app.db.session import get_db
 from app.schemas.contracts import Principal
 from app.services.alerting import alert_summary
+from app.services.audit import audit_summary
+from app.services.command_history import command_summary
 from app.services.control_center import ecosystem_topology
 from app.services.control_plane import (
     list_configuration_history,
@@ -27,7 +29,14 @@ async def topology(db: AsyncSession = Depends(get_db), _: Principal = Depends(re
 
 @router.get("/operations")
 async def operations(db: AsyncSession = Depends(get_db), _: Principal = Depends(require_permission("ung.core.control.read"))):
-    return {"gateway": await gateway_routing_status(db), "incidents": await incident_summary(db), "telemetry": await fleet_health_summary(db), "alerts": await alert_summary(db)}
+    return {
+        "gateway": await gateway_routing_status(db),
+        "incidents": await incident_summary(db),
+        "telemetry": await fleet_health_summary(db),
+        "alerts": await alert_summary(db),
+        "audit": await audit_summary(db),
+        "commands": await command_summary(db),
+    }
 
 
 @router.get("/config/{scope}/{config_key}/history")
@@ -57,18 +66,18 @@ async def control_center_ui():
 </style>
 </head>
 <body><div class='shell'>
-<div class='top'><div><div class='brand'>UNG-CORE Control Center</div><div class='sub'>National Grid ecosystem operations, routing, telemetry, alerts and dependency view</div></div><div class='toolbar'><input id='token' type='password' placeholder='Bearer token'><button onclick='loadAll()'>Connect</button></div></div>
-<div class='grid'><div class='card'><div class='sub'>Systems</div><div id='total' class='metric'>—</div></div><div class='card'><div class='sub'>Healthy Services</div><div id='healthy' class='metric'>—</div></div><div class='card'><div class='sub'>Active Alerts</div><div id='alerts' class='metric'>—</div></div><div class='card'><div class='sub'>Open Incidents</div><div id='incidents' class='metric'>—</div></div></div>
+<div class='top'><div><div class='brand'>UNG-CORE Control Center</div><div class='sub'>National Grid ecosystem operations, routing, telemetry, alerts, audit and command history</div></div><div class='toolbar'><input id='token' type='password' placeholder='Bearer token'><button onclick='loadAll()'>Connect</button></div></div>
+<div class='grid'><div class='card'><div class='sub'>Systems</div><div id='total' class='metric'>—</div></div><div class='card'><div class='sub'>Healthy Services</div><div id='healthy' class='metric'>—</div></div><div class='card'><div class='sub'>Active Alerts</div><div id='alerts' class='metric'>—</div></div><div class='card'><div class='sub'>Recent Commands</div><div id='commands' class='metric'>—</div></div></div>
 <div class='panel'><h3>System Status</h3><div id='systems' class='systems'><span class='sub'>Connect to load status.</span></div></div>
-<div class='panel'><h3>Operational State</h3><div id='ops' class='sub'>Connect to load routing, incident, telemetry and alert state.</div></div>
+<div class='panel'><h3>Operational State</h3><div id='ops' class='sub'>Connect to load routing, incident, telemetry, alert, audit and command state.</div></div>
 <div class='panel'><h3>Ecosystem Topology</h3><div id='topology' class='sub'>Connect to load dependency graph.</div></div>
 </div>
 <script>
 const headers=()=>({Authorization:'Bearer '+document.getElementById('token').value});
 async function get(path){const r=await fetch(path,{headers:headers()});if(!r.ok)throw new Error(await r.text());return r.json()}
 async function loadAll(){try{const [s,t,o]=await Promise.all([get('/v1/control-center/status'),get('/v1/control-center/topology'),get('/v1/control-center/operations')]);
-document.getElementById('total').textContent=s.total_systems;document.getElementById('healthy').textContent=o.telemetry.healthy;document.getElementById('alerts').textContent=o.alerts.active_total;document.getElementById('incidents').textContent=o.incidents.open_total;
+document.getElementById('total').textContent=s.total_systems;document.getElementById('healthy').textContent=o.telemetry.healthy;document.getElementById('alerts').textContent=o.alerts.active_total;document.getElementById('commands').textContent=o.commands.total_recent;
 document.getElementById('systems').innerHTML=s.systems.map(x=>`<div class='system'><b>${x.display_name}</b><div class='sub'>${x.system_key}</div><p><span class='badge'>${x.status}</span> <span class='badge'>${x.criticality}</span></p></div>`).join('')||'<span class="sub">No systems registered.</span>';
-document.getElementById('ops').innerHTML=`Gateway: <b>${o.gateway.enabled_routes}</b> enabled / <b>${o.gateway.total_routes}</b> total routes<br>Incidents: <b>${o.incidents.open_total}</b> open · <b>${o.incidents.critical}</b> critical<br>Alerts: <b>${o.alerts.active_total}</b> active · <b>${o.alerts.critical}</b> critical · <b>${o.alerts.escalated}</b> escalated<br>Telemetry: <b>${o.telemetry.healthy}</b> healthy · <b>${o.telemetry.degraded}</b> degraded · <b>${o.telemetry.offline}</b> offline · <b>${o.telemetry.unknown}</b> unknown`;
+document.getElementById('ops').innerHTML=`Gateway: <b>${o.gateway.enabled_routes}</b> enabled / <b>${o.gateway.total_routes}</b> total routes<br>Incidents: <b>${o.incidents.open_total}</b> open · <b>${o.incidents.critical}</b> critical<br>Alerts: <b>${o.alerts.active_total}</b> active · <b>${o.alerts.critical}</b> critical · <b>${o.alerts.escalated}</b> escalated<br>Commands: <b>${o.commands.total_recent}</b> recent · <b>${o.commands.succeeded}</b> succeeded · <b>${o.commands.failed}</b> failed · <b>${o.commands.unique_actors}</b> actors<br>Audit: <b>${o.audit.total_recent}</b> recent events · <b>${o.audit.unique_actions}</b> actions<br>Telemetry: <b>${o.telemetry.healthy}</b> healthy · <b>${o.telemetry.degraded}</b> degraded · <b>${o.telemetry.offline}</b> offline · <b>${o.telemetry.unknown}</b> unknown`;
 document.getElementById('topology').innerHTML=`<b>${t.node_count}</b> systems · <b>${t.edge_count}</b> dependencies<br><br>`+t.edges.map(e=>`${e.source} → ${e.target} <span class='badge'>${e.type}${e.required?' · required':''}</span>`).join('<br>');}catch(e){alert('Control Center: '+e.message)}}
 </script></body></html>"""
