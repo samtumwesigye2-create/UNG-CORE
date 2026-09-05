@@ -2,7 +2,7 @@ import asyncio
 from contextlib import asynccontextmanager, suppress
 
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 import app.models.audit  # noqa: F401
@@ -92,6 +92,11 @@ async def hardening_middleware(request: Request, call_next):
         if settings.environment.lower() == "production":
             response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
     return response
+
+
+@app.get("/", include_in_schema=False)
+async def root():
+    return RedirectResponse(url="/v1/control-center/ui", status_code=307)
 
 
 app.include_router(router)
