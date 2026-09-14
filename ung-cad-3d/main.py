@@ -12,7 +12,7 @@ from pydantic import BaseModel
 BASE_DIR = Path(__file__).resolve().parent
 DB_PATH = Path(os.getenv("UNG_CAD_3D_DB", str(BASE_DIR / "ung_cad_3d.db")))
 
-app = FastAPI(title="UNG-CAD Studio", version="1.1.0")
+app = FastAPI(title="UNG-CAD Studio", version="1.2.0")
 
 
 def now_iso():
@@ -65,6 +65,16 @@ def serve_studio():
 @app.get("/viewer.html")
 def serve_viewer():
     return FileResponse(BASE_DIR / "viewer.html")
+
+
+@app.get("/drafting.html")
+def serve_drafting():
+    return FileResponse(BASE_DIR / "drafting.html")
+
+
+@app.get("/manufacturing.html")
+def serve_manufacturing():
+    return FileResponse(BASE_DIR / "manufacturing.html")
 
 
 @app.get("/api/scenes")
@@ -130,7 +140,16 @@ def delete_scene(scene_id: int):
 
 @app.get("/health")
 def health():
-    return {"system": "UNG-CAD Studio", "status": "ok", "ui": "/studio.html"}
+    return {
+        "system": "UNG-CAD Studio",
+        "status": "ok",
+        "ui": "/studio.html",
+        "workspaces": {
+            "drafting": "/drafting.html",
+            "3d": "/viewer.html",
+            "manufacturing": "/manufacturing.html",
+        },
+    }
 
 
 app.mount("/static", StaticFiles(directory=BASE_DIR), name="static")
