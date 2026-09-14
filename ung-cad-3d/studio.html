@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>UNG-CAD Studio</title>
+<style>
+:root{--bg1:#14206d;--bg2:#202c8f;--panel:#3044ad;--line:rgba(255,255,255,.24);--text:#f7f8ff;--muted:#c6cdf7;--cyan:#53e1e9}
+*{box-sizing:border-box}html,body{margin:0;min-height:100%;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Arial,sans-serif;color:var(--text);background:linear-gradient(135deg,#10195a 0%,#1b2682 45%,#21349f 100%)}
+body:before{content:"";position:fixed;inset:0;pointer-events:none;background:radial-gradient(circle at 24% 10%,rgba(70,91,255,.38),transparent 38%),radial-gradient(circle at 82% 95%,rgba(36,202,241,.12),transparent 40%)}
+.shell{position:relative;z-index:1;min-height:100vh;padding:42px 46px 56px}.top{display:flex;align-items:flex-start;justify-content:space-between;border-bottom:1px solid var(--line);padding-bottom:30px;margin-bottom:34px}.brand h1{font-size:31px;line-height:1;margin:0 0 8px;font-weight:800;letter-spacing:-.8px;text-shadow:0 2px 8px rgba(0,0,0,.28)}.brand p{margin:0;font-size:17px;color:#d7ddff;font-weight:600}.badge{border:1px solid rgba(119,232,255,.7);color:#d7fbff;padding:7px 13px;border-radius:999px;font-size:13px;font-weight:700;background:rgba(17,42,102,.4)}
+.grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:18px}.card{min-height:250px;border:1px solid rgba(255,255,255,.28);border-radius:17px;background:linear-gradient(145deg,rgba(73,91,202,.62),rgba(41,58,166,.58));box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 14px 35px rgba(3,11,57,.18);padding:27px 24px 23px;display:flex;flex-direction:column}.card h2{font-size:26px;margin:0 0 16px;letter-spacing:-.5px}.card p{font-size:16px;line-height:1.55;margin:0;color:#e0e4ff;flex:1}.btn{display:inline-flex;align-self:flex-start;align-items:center;justify-content:center;text-decoration:none;margin-top:22px;padding:13px 18px;border-radius:9px;background:linear-gradient(135deg,#55a7f4,#5fe1e5);color:#fff;font-weight:800;font-size:15px;box-shadow:0 8px 20px rgba(23,105,225,.3);border:1px solid rgba(255,255,255,.2)}.btn:hover{filter:brightness(1.07)}.disabled{display:inline-flex;align-self:flex-start;margin-top:22px;padding:10px 15px;border:1px solid rgba(143,243,255,.75);border-radius:999px;color:#d6fbff;font-size:13px;font-weight:700;background:rgba(18,55,118,.25)}
+.footer{margin-top:30px;color:#aeb8f1;font-size:13px}
+@media(max-width:980px){.grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:620px){.shell{padding:26px 18px 38px}.top{gap:18px;align-items:flex-start}.brand h1{font-size:25px}.brand p{font-size:14px}.badge{font-size:11px}.grid{grid-template-columns:1fr}.card{min-height:215px}.card h2{font-size:23px}}
+</style>
+</head>
+<body>
+<main class="shell">
+<header class="top">
+  <div class="brand"><h1>UNG-CAD Studio</h1><p>Windows Portable Workstation</p></div>
+  <div class="badge">Cloud Studio</div>
+</header>
+<section class="grid" aria-label="UNG-CAD workspaces">
+  <article class="card"><h2>2D Drafting</h2><p>Draw walls, rectangles, circles, labels and dimensions. Save work locally and export SVG.</p><a class="btn" href="/drafting.html">Open 2D Drafting</a></article>
+  <article class="card"><h2>3D Modeling</h2><p>Create cube, sphere and cylinder solids, run CSG operations, import/export STL, save scenes.</p><a class="btn" href="/viewer.html">Open 3D Modeling</a></article>
+  <article class="card"><h2>Manufacturing</h2><p>Feed in LINK256 or future ZIP/STL/3MF files, inspect printable parts and prepare the job package.</p><a class="btn" href="/manufacturing.html">Open Manufacturing</a></article>
+  <article class="card"><h2>Electronics</h2><p>KiCad-like electronics workspace is part of the production roadmap. This portable build reserves the workspace while schematic/PCB tools are integrated.</p><span class="disabled">Foundation reserved</span></article>
+</section>
+<div class="footer">UNG-CAD Studio • Internal engineering workstation</div>
+</main>
+</body>
+</html>
