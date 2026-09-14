@@ -5,14 +5,14 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse, RedirectResponse
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 BASE_DIR = Path(__file__).resolve().parent
 DB_PATH = Path(os.getenv("UNG_CAD_3D_DB", str(BASE_DIR / "ung_cad_3d.db")))
 
-app = FastAPI(title="UNG-CAD-3D", version="1.0.0")
+app = FastAPI(title="UNG-CAD Studio", version="1.1.0")
 
 
 def now_iso():
@@ -54,7 +54,12 @@ class SceneIn(BaseModel):
 
 @app.get("/")
 def root():
-    return RedirectResponse(url="/viewer.html")
+    return FileResponse(BASE_DIR / "studio.html")
+
+
+@app.get("/studio.html")
+def serve_studio():
+    return FileResponse(BASE_DIR / "studio.html")
 
 
 @app.get("/viewer.html")
@@ -125,7 +130,7 @@ def delete_scene(scene_id: int):
 
 @app.get("/health")
 def health():
-    return {"system": "UNG-CAD-3D", "status": "ok", "ui": "/viewer.html"}
+    return {"system": "UNG-CAD Studio", "status": "ok", "ui": "/studio.html"}
 
 
 app.mount("/static", StaticFiles(directory=BASE_DIR), name="static")
