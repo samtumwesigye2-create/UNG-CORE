@@ -3,8 +3,10 @@ import os
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
+import zipfile
+import tempfile
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -76,6 +78,20 @@ def serve_drafting():
 def serve_manufacturing():
     return FileResponse(BASE_DIR / "manufacturing.html")
 
+
+@app.post("/api/manufacturing/inspect")
+async def inspect_manufacturing(file: UploadFile = File(...)):
+    name=file.filename or "project"; raw=await file.read(); parts=[]
+    if name.lower().endswith(".zip"):
+        try:
+            with tempfile.NamedTemporaryFile(suffix=".zip") as tmp:
+                tmp.write(raw); tmp.flush()
+                with zipfile.ZipFile(tmp.name) as z: parts=[n for n in z.namelist() if n.lower().endswith((".stl",".3mf")) and not n.endswith("/")]
+        except zipfile.BadZipFile: raise HTTPException(status_code=400,detail="Invalid ZIP package")
+    elif name.lower().endswith((".stl",".3mf")): parts=[name]
+    else: raise HTTPException(status_code=400,detail="Use ZIP, STL or 3MF")
+    if not parts: raise HTTPException(status_code=400,detail="No printable STL/3MF parts found")
+    return {"status":"validated","project":name,"parts":parts,"part_count":len(parts),"printer_profile":"FlashForge Adventurer 5M"}
 
 @app.get("/api/scenes")
 def list_scenes():
