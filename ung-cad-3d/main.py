@@ -39,6 +39,8 @@ def drafting(): return FileResponse(BASE_DIR/"drafting.html")
 def bridge(): return FileResponse(BASE_DIR/"ung-cad-ad5m-bridge.py",filename="ung-cad-ad5m-bridge.py")
 @app.get("/start-ad5m-bridge.bat")
 def bridge_bat(): return FileResponse(BASE_DIR/"start-ad5m-bridge.bat",filename="start-ad5m-bridge.bat")
+@app.get("/start-ad5m-bridge.command")
+def bridge_mac(): return FileResponse(BASE_DIR/"start-ad5m-bridge.command",filename="start-ad5m-bridge.command",media_type="application/octet-stream")
 
 def printable_entries(names):
     out=[]
