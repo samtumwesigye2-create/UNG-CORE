@@ -2,34 +2,79 @@
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>UNG-CAD Manufacturing</title>
 <style>
-*{box-sizing:border-box}body{margin:0;background:linear-gradient(135deg,#172c85,#2945ad);font-family:Arial;color:#fff;min-height:100vh}.top{padding:18px 24px;border-bottom:1px solid #7288dc;display:flex;gap:10px}.top button{background:#eef3ff;color:#243a88;border:0;padding:8px 18px}.wrap{padding:28px;max-width:1100px;margin:auto}.box{background:#2943a5;border:1px solid #7188dd;border-radius:8px;padding:22px}h1{margin:0 0 18px;font-size:25px}.meta,.status{font-size:13px;color:#dce4ff;white-space:pre-line}.notice{margin:16px 0;padding:14px;background:#1e347f;border-left:4px solid #55d7ff}.controls{display:grid;grid-template-columns:1fr 180px 150px;gap:10px;align-items:end;margin:15px 0}.field label{display:block;font-size:12px;margin-bottom:6px}.field input,.field select{width:100%;padding:10px;border:0;border-radius:5px}.btn{padding:11px 14px;border:0;border-radius:5px;background:#55c9ef;color:#12327f;font-weight:bold}.btn:disabled{opacity:.45}.part{display:grid;grid-template-columns:1fr 150px 120px;gap:8px;align-items:center;border-top:1px solid #6078ce;padding:10px 0;font-size:12px}.tag{padding:7px;border-radius:5px;text-align:center;background:#8a5b16}.ready{background:#16835d}.link{color:#fff;text-decoration:underline}.small{font-size:11px;color:#c8d4ff}.machine{margin-top:20px;padding:16px;background:#203a91;border-radius:6px}
+*{box-sizing:border-box}body{margin:0;background:linear-gradient(135deg,#172c85,#2945ad);font-family:Arial;color:#fff;min-height:100vh}.top{padding:18px 24px;border-bottom:1px solid #7288dc;display:flex;gap:10px}.top button{background:#eef3ff;color:#243a88;border:0;padding:8px 18px}.wrap{padding:28px;max-width:1100px;margin:auto}.box{background:#2943a5;border:1px solid #7188dd;border-radius:8px;padding:22px}h1{margin:0 0 18px;font-size:25px}h2{font-size:15px;margin:26px 0 10px;border-top:1px solid #6078ce;padding-top:18px;display:flex;align-items:center;gap:8px}h2 .step{background:#55c9ef;color:#12327f;border-radius:50%;width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:bold}.meta,.status{font-size:13px;color:#dce4ff;white-space:pre-line}.notice{margin:16px 0;padding:14px;background:#1e347f;border-left:4px solid #55d7ff}.controls{display:grid;grid-template-columns:1fr 180px 150px;gap:10px;align-items:end;margin:15px 0}.field label{display:block;font-size:12px;margin-bottom:6px}.field input,.field select{width:100%;padding:10px;border:0;border-radius:5px}.btn{padding:11px 14px;border:0;border-radius:5px;background:#55c9ef;color:#12327f;font-weight:bold;cursor:pointer}.btn:disabled{opacity:.45;cursor:default}.part{display:grid;grid-template-columns:1fr 70px 160px;gap:8px;align-items:center;border-top:1px solid #6078ce;padding:10px 0;font-size:12px}.part.active{background:rgba(85,201,239,.12)}.tag{padding:7px;border-radius:5px;text-align:center;background:#3a539e;font-size:11px}.ready{background:#16835d}.link{color:#fff;text-decoration:underline}.small{font-size:11px;color:#c8d4ff}.machine{margin-top:0;padding:16px;background:#203a91;border-radius:6px}
+.preview-wrap{display:grid;grid-template-columns:1fr 260px;gap:14px;margin-top:6px}#preview3d{height:320px;background:#0f1b4d;border-radius:8px;overflow:hidden;position:relative}#preview3d canvas{display:block;width:100%;height:100%}#previewStats{font-size:12px;background:#1e347f;border-radius:8px;padding:14px;white-space:pre-line;line-height:1.6}#previewPlaceholder{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#9fb0e8;font-size:13px;text-align:center;padding:20px}
+@media(max-width:820px){.preview-wrap{grid-template-columns:1fr}.controls{grid-template-columns:1fr}.part{grid-template-columns:1fr auto auto}}
 </style></head>
 <body><div class="top"><button onclick="location.href='/studio.html'">Home</button><button onclick="location.href='/viewer.html'">3D</button></div>
 <div class="wrap"><div class="box"><h1>UNG-CAD Manufacturing</h1>
+
+<h2><span class="step">1</span>Upload package</h2>
 <input id="pkg" type="file" accept=".zip,.stl,.3mf,.gcode,.gx">
-<div id="meta" class="meta">Load a DRACO Gen-1 package.</div>
+<div id="meta" class="meta">Load a DRACO Gen-1 package (.zip) or a single .stl file.</div>
 <div class="notice"><b>Real manufacturing engine</b><span id="engine">Server-side STL slicing is available. No simulated print actions.</span></div>
+
+<h2><span class="step">2</span>Choose &amp; verify a part in 3D</h2>
+<div id="parts"><div class="small">Upload a package above to list its printable parts.</div></div>
+<div class="preview-wrap">
+  <div id="preview3d"><div id="previewPlaceholder">Select a part above to preview its geometry here.</div></div>
+  <div id="previewStats" class="small">No part selected yet.</div>
+</div>
+
+<h2><span class="step">3</span>Slice for the printer</h2>
 <div class="controls">
 <div class="field"><label>Printable part</label><select id="part" disabled><option>Select package first</option></select></div>
 <div class="field"><label>Layer height (mm)</label><input id="layer" value="0.20" type="number" min="0.08" max="0.40" step="0.02"></div>
 <button class="btn" id="slice" disabled>Slice for AD5M</button>
 </div>
-<div id="parts"></div>
-<div class="machine"><b>AD5M printer bridge</b><div class="small">Enter the printer ID shown on the printer, pair once, then transmit a generated machine file through the local bridge.</div>
+
+<h2><span class="step">4</span>Send to printer</h2>
+<div class="machine"><b>AD5M printer bridge</b><div class="small">Enter the printer ID shown on the printer, pair once, then transmit the sliced file through the local bridge. The bridge (start-ad5m-bridge.bat) must be running on a computer on the same network as the printer.</div>
 <div class="controls">
 <div class="field"><label>Printer ID</label><input id="printer" value="SNMTUF9100669"></div>
-<button class="btn" id="pair">Pair printer</button><button class="btn" id="send" disabled>Send sliced file</button>
+<button class="btn" id="pair">Pair printer</button><button class="btn" id="send" disabled>Send sliced file &amp; start print</button>
 </div><div id="status" class="status"></div></div>
+
 </div></div>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<script src="/static/csg-engine.js"></script>
 <script>
-const f=document.getElementById('pkg'),meta=document.getElementById('meta'),parts=document.getElementById('parts'),status=document.getElementById('status'),part=document.getElementById('part'),sliceBtn=document.getElementById('slice'),sendBtn=document.getElementById('send');
+const f=document.getElementById('pkg'),meta=document.getElementById('meta'),parts=document.getElementById('parts'),status=document.getElementById('status'),part=document.getElementById('part'),sliceBtn=document.getElementById('slice'),sendBtn=document.getElementById('send'),previewStats=document.getElementById('previewStats');
 let selectedFile=null,lastMachineUrl=null,paired=false;
-f.onchange=async()=>{if(!f.files[0])return;selectedFile=f.files[0];parts.innerHTML='';part.innerHTML='';status.textContent='Inspecting actual package…';const d=new FormData();d.append('file',selectedFile);
+
+async function extractPartBytes(file,partName){
+  if(!file.name.toLowerCase().endsWith('.zip'))return await file.arrayBuffer();
+  const zip=await JSZip.loadAsync(file);let match=null;
+  zip.forEach((relPath,entry)=>{if(!entry.dir&&relPath.split('/').pop()===partName)match=entry;});
+  if(!match)throw new Error('Part not found in package: '+partName);
+  return await match.async('arraybuffer');
+}
+
+async function selectAndPreview(n,rowEl){
+  part.value=n;sliceBtn.disabled=false;
+  document.querySelectorAll('.part').forEach(r=>r.classList.remove('active'));
+  if(rowEl)rowEl.classList.add('active');
+  previewStats.textContent='Loading geometry…';
+  try{
+    const bytes=await extractPartBytes(selectedFile,n);
+    window.__previewSTL(n,bytes);
+  }catch(e){
+    previewStats.textContent='Preview failed — '+e.message;
+  }
+}
+
+f.onchange=async()=>{if(!f.files[0])return;selectedFile=f.files[0];parts.innerHTML='';part.innerHTML='';status.textContent='Inspecting actual package…';previewStats.textContent='No part selected yet.';const d=new FormData();d.append('file',selectedFile);
 try{const r=await fetch('/api/manufacturing/inspect',{method:'POST',body:d}),j=await r.json();if(!r.ok)throw Error(j.detail||'Inspection failed');meta.textContent=selectedFile.name+' — '+j.part_count+' printable parts detected (assembly reference excluded)';
-j.parts.forEach((n,i)=>{const o=document.createElement('option');o.value=n;o.textContent=(i+1)+'. '+n;part.appendChild(o);const row=document.createElement('div');row.className='part';const name=document.createElement('span');name.textContent=(i+1)+'. '+n;const tag=document.createElement('span');tag.className='tag';tag.textContent='STL — SLICE';const b=document.createElement('button');b.className='btn';b.textContent='Select';b.onclick=()=>{part.value=n;sliceBtn.disabled=false};row.append(name,tag,b);parts.appendChild(row)});part.disabled=false;sliceBtn.disabled=false;status.textContent='Package inspection complete. Select a part and click Slice for AD5M.'}catch(e){status.textContent='FAILED — '+e.message}};
-part.onchange=()=>sliceBtn.disabled=!selectedFile||!part.value;
+let firstRow=null;
+j.parts.forEach((n,i)=>{const o=document.createElement('option');o.value=n;o.textContent=(i+1)+'. '+n;part.appendChild(o);const row=document.createElement('div');row.className='part';const name=document.createElement('span');name.textContent=(i+1)+'. '+n;const tag=document.createElement('span');tag.className='tag';tag.textContent='.stl';const b=document.createElement('button');b.className='btn';b.textContent='Preview & select';b.onclick=async()=>{b.disabled=true;const old=b.textContent;b.textContent='Loading…';await selectAndPreview(n,row);b.disabled=false;b.textContent=old;};row.append(name,tag,b);parts.appendChild(row);if(i===0)firstRow=row});
+part.disabled=false;sliceBtn.disabled=false;status.textContent='Package inspection complete.';
+if(j.parts.length)selectAndPreview(j.parts[0],firstRow);
+}catch(e){status.textContent='FAILED — '+e.message}};
+part.onchange=()=>{sliceBtn.disabled=!selectedFile||!part.value;if(part.value)selectAndPreview(part.value,null)};
 sliceBtn.onclick=async()=>{if(!selectedFile||!part.value)return;sliceBtn.disabled=true;sendBtn.disabled=true;status.textContent='Slicing real STL geometry…';const d=new FormData();d.append('file',selectedFile);d.append('selected',part.value);d.append('layer_height',document.getElementById('layer').value);
 try{const r=await fetch('/api/manufacturing/slice',{method:'POST',body:d}),j=await r.json();if(!r.ok)throw Error(j.detail||'Slicing failed');lastMachineUrl=j.download;sendBtn.disabled=false;status.textContent='SLICE COMPLETE — '+j.stats.layers+' layers, '+j.stats.height_mm+' mm height, '+j.stats.size_xy_mm.join(' × ')+' mm XY.\nMachine file: '+j.machine_file+'\n';const a=document.createElement('a');a.className='link';a.href=j.download;a.download=j.machine_file;a.textContent='Download AD5M G-code';status.appendChild(a)}catch(e){status.textContent='SLICE FAILED — '+e.message}finally{sliceBtn.disabled=false}};
 document.getElementById('pair').onclick=async()=>{status.textContent='Pairing with local AD5M bridge…';try{const r=await fetch('http://127.0.0.1:8765/pair',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({printer_id:document.getElementById('printer').value.trim()})});const j=await r.json();if(!r.ok||j.error)throw Error(j.error||'Pairing failed');paired=true;status.textContent='PRINTER PAIRED — '+j.printer.name+' / '+j.printer.serial+' / '+j.printer.ip;sendBtn.disabled=!lastMachineUrl}catch(e){status.textContent='PAIR FAILED — '+e.message}};
 sendBtn.onclick=async()=>{if(!lastMachineUrl||!paired)return;sendBtn.disabled=true;status.textContent='Sending machine file to local AD5M bridge…';try{const blob=await fetch(lastMachineUrl).then(r=>r.blob());const name=lastMachineUrl.split('/').pop();const r=await fetch('http://127.0.0.1:8765/print',{method:'POST',headers:{'X-Filename':name,'X-Level':'true'},body:await blob.arrayBuffer()});const j=await r.json();if(!r.ok||j.error)throw Error(j.error||'Printer rejected job');status.textContent='PRINT JOB ACCEPTED — '+j.file+'\nThe AD5M bridge reported the job started.'}catch(e){status.textContent='TRANSMISSION FAILED — '+e.message}finally{sendBtn.disabled=!paired||!lastMachineUrl}};
-</script></body></html>
+</script>
+<script type="module" src="/static/manufacturing-preview.js"></script>
+</body></html>
