@@ -3,169 +3,46 @@ import os
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
-import zipfile
-import tempfile
-
-from fastapi import FastAPI, HTTPException, UploadFile, File
-from fastapi.responses import FileResponse
+from fastapi import FastAPI, HTTPException
+from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
-
 BASE_DIR = Path(__file__).resolve().parent
 DB_PATH = Path(os.getenv("UNG_CAD_3D_DB", str(BASE_DIR / "ung_cad_3d.db")))
-
-app = FastAPI(title="UNG-CAD Studio", version="1.2.0")
-
-
-def now_iso():
-    return datetime.now(timezone.utc).isoformat()
-
-
+app = FastAPI(title="UNG-CAD-3D", version="1.0.0")
+def now_iso(): return datetime.now(timezone.utc).isoformat()
 def get_connection():
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    return conn
-
-
+    conn=sqlite3.connect(DB_PATH); conn.row_factory=sqlite3.Row; return conn
 def init_db():
-    conn = get_connection()
-    conn.execute(
-        """
-        CREATE TABLE IF NOT EXISTS scenes (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL,
-            data_json TEXT NOT NULL,
-            created_at TEXT NOT NULL,
-            updated_at TEXT NOT NULL
-        )
-        """
-    )
-    conn.commit()
-    conn.close()
-
-
+    conn=get_connection(); conn.execute("CREATE TABLE IF NOT EXISTS scenes (id INTEGER PRIMARY KEY AUTOINCREMENT,name TEXT NOT NULL,data_json TEXT NOT NULL,created_at TEXT NOT NULL,updated_at TEXT NOT NULL)"); conn.commit(); conn.close()
 @app.on_event("startup")
-def startup():
-    init_db()
-
-
+def startup(): init_db()
 class SceneIn(BaseModel):
-    name: str
-    data: dict
-
-
+    name:str
+    data:dict
 @app.get("/")
-def root():
-    return FileResponse(BASE_DIR / "studio.html")
-
-
-@app.get("/studio.html")
-def serve_studio():
-    return FileResponse(BASE_DIR / "studio.html")
-
-
+def root(): return RedirectResponse(url="/viewer.html")
 @app.get("/viewer.html")
-def serve_viewer():
-    return FileResponse(BASE_DIR / "viewer.html")
-
-
-@app.get("/drafting.html")
-def serve_drafting():
-    return FileResponse(BASE_DIR / "drafting.html")
-
-
-@app.get("/manufacturing.html")
-def serve_manufacturing():
-    return FileResponse(BASE_DIR / "manufacturing.html")
-
-
-@app.post("/api/manufacturing/inspect")
-async def inspect_manufacturing(file: UploadFile = File(...)):
-    name=file.filename or "project"; raw=await file.read(); parts=[]
-    if name.lower().endswith(".zip"):
-        try:
-            with tempfile.NamedTemporaryFile(suffix=".zip") as tmp:
-                tmp.write(raw); tmp.flush()
-                with zipfile.ZipFile(tmp.name) as z: parts=[n for n in z.namelist() if n.lower().endswith((".stl",".3mf")) and not n.endswith("/")]
-        except zipfile.BadZipFile: raise HTTPException(status_code=400,detail="Invalid ZIP package")
-    elif name.lower().endswith((".stl",".3mf")): parts=[name]
-    else: raise HTTPException(status_code=400,detail="Use ZIP, STL or 3MF")
-    if not parts: raise HTTPException(status_code=400,detail="No printable STL/3MF parts found")
-    return {"status":"validated","project":name,"parts":parts,"part_count":len(parts),"printer_profile":"FlashForge Adventurer 5M"}
-
+def serve_viewer(): return FileResponse(BASE_DIR/"viewer.html")
 @app.get("/api/scenes")
 def list_scenes():
-    conn = get_connection()
-    rows = conn.execute(
-        "SELECT id, name, created_at, updated_at FROM scenes ORDER BY updated_at DESC"
-    ).fetchall()
-    conn.close()
-    return [dict(r) for r in rows]
-
-
+    conn=get_connection(); rows=conn.execute("SELECT id,name,created_at,updated_at FROM scenes ORDER BY updated_at DESC").fetchall(); conn.close(); return [dict(r) for r in rows]
 @app.get("/api/scenes/{scene_id}")
-def get_scene(scene_id: int):
-    conn = get_connection()
-    row = conn.execute("SELECT * FROM scenes WHERE id = ?", (scene_id,)).fetchone()
-    conn.close()
-    if not row:
-        raise HTTPException(status_code=404, detail="Scene not found")
-    result = dict(row)
-    result["data"] = json.loads(result.pop("data_json"))
-    return result
-
-
+def get_scene(scene_id:int):
+    conn=get_connection(); row=conn.execute("SELECT * FROM scenes WHERE id=?",(scene_id,)).fetchone(); conn.close()
+    if not row: raise HTTPException(status_code=404, detail="Scene not found")
+    result=dict(row); result["data"]=json.loads(result.pop("data_json")); return result
 @app.post("/api/scenes")
-def create_scene(scene: SceneIn):
-    conn = get_connection()
-    now = now_iso()
-    cur = conn.execute(
-        "INSERT INTO scenes (name, data_json, created_at, updated_at) VALUES (?, ?, ?, ?)",
-        (scene.name, json.dumps(scene.data), now, now),
-    )
-    conn.commit()
-    scene_id = cur.lastrowid
-    conn.close()
-    return {"id": scene_id, "status": "created"}
-
-
+def create_scene(scene:SceneIn):
+    conn=get_connection(); now=now_iso(); cur=conn.execute("INSERT INTO scenes (name,data_json,created_at,updated_at) VALUES (?,?,?,?)",(scene.name,json.dumps(scene.data),now,now)); conn.commit(); sid=cur.lastrowid; conn.close(); return {"id":sid,"status":"created"}
 @app.put("/api/scenes/{scene_id}")
-def update_scene(scene_id: int, scene: SceneIn):
-    conn = get_connection()
-    existing = conn.execute("SELECT id FROM scenes WHERE id = ?", (scene_id,)).fetchone()
-    if not existing:
-        conn.close()
-        raise HTTPException(status_code=404, detail="Scene not found")
-    conn.execute(
-        "UPDATE scenes SET name = ?, data_json = ?, updated_at = ? WHERE id = ?",
-        (scene.name, json.dumps(scene.data), now_iso(), scene_id),
-    )
-    conn.commit()
-    conn.close()
-    return {"status": "updated"}
-
-
+def update_scene(scene_id:int, scene:SceneIn):
+    conn=get_connection(); existing=conn.execute("SELECT id FROM scenes WHERE id=?",(scene_id,)).fetchone()
+    if not existing: conn.close(); raise HTTPException(status_code=404, detail="Scene not found")
+    conn.execute("UPDATE scenes SET name=?,data_json=?,updated_at=? WHERE id=?",(scene.name,json.dumps(scene.data),now_iso(),scene_id)); conn.commit(); conn.close(); return {"status":"updated"}
 @app.delete("/api/scenes/{scene_id}")
-def delete_scene(scene_id: int):
-    conn = get_connection()
-    conn.execute("DELETE FROM scenes WHERE id = ?", (scene_id,))
-    conn.commit()
-    conn.close()
-    return {"status": "deleted"}
-
-
+def delete_scene(scene_id:int):
+    conn=get_connection(); conn.execute("DELETE FROM scenes WHERE id=?",(scene_id,)); conn.commit(); conn.close(); return {"status":"deleted"}
 @app.get("/health")
-def health():
-    return {
-        "system": "UNG-CAD Studio",
-        "status": "ok",
-        "ui": "/studio.html",
-        "workspaces": {
-            "drafting": "/drafting.html",
-            "3d": "/viewer.html",
-            "manufacturing": "/manufacturing.html",
-        },
-    }
-
-
+def health(): return {"system":"UNG-CAD-3D","status":"ok","ui":"/viewer.html"}
 app.mount("/static", StaticFiles(directory=BASE_DIR), name="static")
