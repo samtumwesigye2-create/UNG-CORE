@@ -1,4 +1,4 @@
-import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.140.0/build/three.module.min.js';
+import * as THREE from 'three';
 import { OrbitControls } from 'https://cdn.jsdelivr.net/npm/three@0.140.0/examples/jsm/controls/OrbitControls.js';
 const previewEl=document.getElementById('preview3d'),placeholder=document.getElementById('previewPlaceholder'),previewStats=document.getElementById('previewStats');
 const scene=new THREE.Scene();scene.background=new THREE.Color(0x0f1b4d);
