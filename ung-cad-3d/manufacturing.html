@@ -10,7 +10,7 @@
 <div class="wrap"><div class="box"><h1>UNG-CAD Manufacturing</h1>
 
 <h2><span class="step">1</span>Upload package</h2>
-<input id="pkg" type="file" accept=".zip,.stl,.3mf,.gcode,.gx">
+<input id="pkg" type="file" multiple>
 <div id="meta" class="meta">Load a DRACO Gen-1 package (.zip) or a single .stl file.</div>
 <div class="notice"><b>Real manufacturing engine</b><span id="engine">Server-side STL slicing is available. No simulated print actions.</span></div>
 
@@ -63,8 +63,10 @@ async function selectAndPreview(n,rowEl){
   }
 }
 
-f.onchange=async()=>{if(!f.files[0])return;selectedFile=f.files[0];parts.innerHTML='';part.innerHTML='';status.textContent='Inspecting actual package…';previewStats.textContent='No part selected yet.';const d=new FormData();d.append('file',selectedFile);
-try{const r=await fetch('/api/manufacturing/inspect',{method:'POST',body:d}),j=await r.json();if(!r.ok)throw Error(j.detail||'Inspection failed');meta.textContent=selectedFile.name+' — '+j.part_count+' printable parts detected (assembly reference excluded)';
+f.onchange=async()=>{if(!f.files.length)return;const chosen=[...f.files];parts.innerHTML='';part.innerHTML='';status.textContent='Preparing selected files…';previewStats.textContent='No part selected yet.';
+if(chosen.length===1){selectedFile=chosen[0]}else{const zip=new JSZip();for(const file of chosen)zip.file(file.name,await file.arrayBuffer());const blob=await zip.generateAsync({type:'blob'});selectedFile=new File([blob],'UNG-CAD-selected-files.zip',{type:'application/zip'});}
+status.textContent='Inspecting actual package…';const d=new FormData();d.append('file',selectedFile);
+try{const r=await fetch('/api/manufacturing/inspect',{method:'POST',body:d}),j=await r.json();if(!r.ok)throw Error(j.detail||'Inspection failed');meta.textContent=(chosen.length>1?(chosen.length+' files selected'):selectedFile.name)+' — '+j.part_count+' printable parts detected (assembly reference excluded)';
 let firstRow=null;
 j.parts.forEach((n,i)=>{const o=document.createElement('option');o.value=n;o.textContent=(i+1)+'. '+n;part.appendChild(o);const row=document.createElement('div');row.className='part';const name=document.createElement('span');name.textContent=(i+1)+'. '+n;const tag=document.createElement('span');tag.className='tag';tag.textContent='.stl';const b=document.createElement('button');b.className='btn';b.textContent='Preview & select';b.onclick=async()=>{b.disabled=true;const old=b.textContent;b.textContent='Loading…';await selectAndPreview(n,row);b.disabled=false;b.textContent=old;};row.append(name,tag,b);parts.appendChild(row);if(i===0)firstRow=row});
 part.disabled=false;sliceBtn.disabled=false;status.textContent='Package inspection complete.';
