@@ -10,7 +10,7 @@
 <div class="wrap"><div class="box"><h1>UNG-CAD Manufacturing</h1>
 
 <h2><span class="step">1</span>Upload package</h2>
-<input id="pkg" type="file" multiple>
+<div class="row"><button class="btn" id="choose-files" type="button">Choose files / ZIP</button><button class="btn" id="choose-folder" type="button">Choose project folder</button></div><input id="pkg" type="file" multiple style="display:none"><input id="pkg-folder" type="file" webkitdirectory directory multiple style="display:none">
 <div id="meta" class="meta">Load a DRACO Gen-1 package (.zip) or a single .stl file.</div>
 <div class="notice"><b>Real manufacturing engine</b><span id="engine">Server-side STL slicing is available. No simulated print actions.</span></div>
 
@@ -39,7 +39,9 @@
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <script src="/static/csg-engine.js"></script>
 <script>
-const f=document.getElementById('pkg'),meta=document.getElementById('meta'),parts=document.getElementById('parts'),status=document.getElementById('status'),part=document.getElementById('part'),sliceBtn=document.getElementById('slice'),sendBtn=document.getElementById('send'),previewStats=document.getElementById('previewStats');
+const f=document.getElementById('pkg'),folderInput=document.getElementById('pkg-folder'),meta=document.getElementById('meta'),parts=document.getElementById('parts'),status=document.getElementById('status'),part=document.getElementById('part'),sliceBtn=document.getElementById('slice'),sendBtn=document.getElementById('send'),previewStats=document.getElementById('previewStats');
+document.getElementById('choose-files').onclick=()=>{f.value='';f.click()};
+document.getElementById('choose-folder').onclick=()=>{folderInput.value='';folderInput.click()};
 let selectedFile=null,lastMachineUrl=null,paired=false;
 
 async function extractPartBytes(file,partName){
@@ -63,7 +65,7 @@ async function selectAndPreview(n,rowEl){
   }
 }
 
-f.onchange=async()=>{if(!f.files.length)return;const chosen=[...f.files];parts.innerHTML='';part.innerHTML='';status.textContent='Preparing selected files…';previewStats.textContent='No part selected yet.';
+async function handleChosenFiles(fileList,sourceLabel='files'){if(!fileList||!fileList.length)return;const chosen=[...fileList];parts.innerHTML='';part.innerHTML='';status.textContent='Preparing selected '+sourceLabel+'…';previewStats.textContent='No part selected yet.';
 if(chosen.length===1){selectedFile=chosen[0]}else{const zip=new JSZip();for(const file of chosen)zip.file(file.name,await file.arrayBuffer());const blob=await zip.generateAsync({type:'blob'});selectedFile=new File([blob],'UNG-CAD-selected-files.zip',{type:'application/zip'});}
 status.textContent='Inspecting actual package…';const d=new FormData();d.append('file',selectedFile);
 try{const r=await fetch('/api/manufacturing/inspect',{method:'POST',body:d}),j=await r.json();if(!r.ok)throw Error(j.detail||'Inspection failed');meta.textContent=(chosen.length>1?(chosen.length+' files selected'):selectedFile.name)+' — '+j.part_count+' printable parts detected (assembly reference excluded)';
@@ -71,7 +73,9 @@ let firstRow=null;
 j.parts.forEach((n,i)=>{const o=document.createElement('option');o.value=n;o.textContent=(i+1)+'. '+n;part.appendChild(o);const row=document.createElement('div');row.className='part';const name=document.createElement('span');name.textContent=(i+1)+'. '+n;const tag=document.createElement('span');tag.className='tag';tag.textContent='.stl';const b=document.createElement('button');b.className='btn';b.textContent='Preview & select';b.onclick=async()=>{b.disabled=true;const old=b.textContent;b.textContent='Loading…';await selectAndPreview(n,row);b.disabled=false;b.textContent=old;};row.append(name,tag,b);parts.appendChild(row);if(i===0)firstRow=row});
 part.disabled=false;sliceBtn.disabled=false;status.textContent='Package inspection complete.';
 if(j.parts.length)selectAndPreview(j.parts[0],firstRow);
-}catch(e){status.textContent='FAILED — '+e.message}};
+}catch(e){status.textContent='FAILED — '+e.message}}
+f.onchange=()=>handleChosenFiles(f.files,'files');
+folderInput.onchange=()=>handleChosenFiles(folderInput.files,'folder');
 part.onchange=()=>{sliceBtn.disabled=!selectedFile||!part.value;if(part.value)selectAndPreview(part.value,null)};
 sliceBtn.onclick=async()=>{if(!selectedFile||!part.value)return;sliceBtn.disabled=true;sendBtn.disabled=true;status.textContent='Slicing real STL geometry…';const d=new FormData();d.append('file',selectedFile);d.append('selected',part.value);d.append('layer_height',document.getElementById('layer').value);
 try{const r=await fetch('/api/manufacturing/slice',{method:'POST',body:d}),j=await r.json();if(!r.ok)throw Error(j.detail||'Slicing failed');lastMachineUrl=j.download;sendBtn.disabled=false;status.textContent='SLICE COMPLETE — '+j.stats.layers+' layers, '+j.stats.height_mm+' mm height, '+j.stats.size_xy_mm.join(' × ')+' mm XY.\nMachine file: '+j.machine_file+'\n';const a=document.createElement('a');a.className='link';a.href=j.download;a.download=j.machine_file;a.textContent='Download AD5M G-code';status.appendChild(a)}catch(e){status.textContent='SLICE FAILED — '+e.message}finally{sliceBtn.disabled=false}};
