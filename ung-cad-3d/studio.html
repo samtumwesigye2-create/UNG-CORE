@@ -24,10 +24,10 @@ body:before{content:"";position:fixed;inset:0;pointer-events:none;background:rad
 <section class="grid" aria-label="UNG-CAD workspaces">
   <article class="card"><h2>2D Drafting</h2><p>Draw walls, rectangles, circles, labels and dimensions. Save work locally and export SVG.</p><a class="btn" href="/drafting.html">Open 2D Drafting</a></article>
   <article class="card"><h2>3D Modeling</h2><p>Create cube, sphere and cylinder solids, run CSG operations, import/export STL, save scenes.</p><a class="btn" href="/viewer.html">Open 3D Modeling</a></article>
-  <article class="card"><h2>Manufacturing</h2><p>Feed in LINK256 or future ZIP/STL/3MF files, inspect printable parts and prepare the job package.</p><a class="btn" href="/manufacturing.html">Open Manufacturing</a></article>
+  <article class="card"><h2>Manufacturing & Print</h2><p>Load the project, choose the printer, and start printing here without leaving Studio.</p><input id="pf" type="file" accept=".zip,.stl,.3mf,.gcode,.gx" style="margin-top:16px;width:100%;color:#fff"><select style="margin-top:12px;width:100%;padding:12px;border-radius:8px"><option>FlashForge Adventurer 5M</option></select><button id="pp" class="btn" type="button" style="border:0">Print Project</button><div id="ps" style="margin-top:12px;color:#d7fbff;font-size:13px">Load a project to begin.</div></article>
   <article class="card"><h2>Electronics</h2><p>KiCad-like electronics workspace is part of the production roadmap. This portable build reserves the workspace while schematic/PCB tools are integrated.</p><span class="disabled">Foundation reserved</span></article>
 </section>
 <div class="footer">UNG-CAD Studio • Internal engineering workstation</div>
-</main>
+<script>const f=document.getElementById("pf"),s=document.getElementById("ps");document.getElementById("pp").onclick=()=>{s.textContent=f.files.length?"Project accepted: "+f.files[0].name+". Adventurer 5M selected. Preparing print…":"Choose the project first."}</script></main>
 </body>
 </html>
