@@ -61,7 +61,7 @@ class H(BaseHTTPRequestHandler):
                 if not name.lower().endswith((".gcode",".gx",".3mf")): return self.out({"error":"File must already be sliced (.gcode/.gx/.3mf)"},400)
                 n=int(self.headers.get("Content-Length","0")); raw=self.rfile.read(n)
                 fd,path=tempfile.mkstemp(suffix=Path(name).suffix); os.close(fd); Path(path).write_bytes(raw)
-                try: return self.out(asyncio.run(print_file(path,self.headers.get("X-Level","true").lower()=="true"))
+                try: return self.out(asyncio.run(print_file(path,self.headers.get("X-Level","true").lower()=="true")))
                 finally:
                     try: os.unlink(path)
                     except: pass
