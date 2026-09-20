@@ -19,8 +19,14 @@ async def connect(check_code):
     if not p: raise RuntimeError("Discovered printer did not report a serial number")
     opts=FiveMClientConnectionOptions(http_port=p.event_port,tcp_port=p.command_port)
     async with FlashForgeClient(p.ip_address,p.serial_number,check_code,options=opts) as c:
-        info=await c.get_printer_status()
-        if not info: raise RuntimeError("Printer rejected connection / Printer ID")
+        try:
+            info=await c.get_printer_status()
+        except Exception as e:
+            msg=str(e)
+            if "Access code is different" in msg or "access code is different" in msg:
+                raise RuntimeError("Access Code mismatch — enter the CURRENT Access Code / Check Code shown in the printer Network settings")
+            raise
+        if not info: raise RuntimeError("Printer rejected connection / Access Code")
         STATE["printer"]={"name":c.printer_name or p.name,"ip":p.ip_address,"serial":p.serial_number,"firmware":c.firmware_version,"http_port":p.event_port,"tcp_port":p.command_port}
         STATE["check_code"]=check_code
         return STATE["printer"]
