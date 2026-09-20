@@ -42,17 +42,11 @@ async def print_file(path, level=True):
         info=await c.get_printer_status()
         if not info: raise RuntimeError("Printer connection failed")
         await c.init_control()
-        info=await c.get_printer_status()
-        if not info: raise RuntimeError("Printer control initialization failed")
-        ok=await c.job_control.upload_file(path,start_print=True,level_before_print=level)
-        if ok:
-            return {"started":True,"file":Path(path).name,"mode":"upload_and_start"}
-        # Fallback for firmware that accepts upload but rejects the combined start request.
         uploaded=await c.job_control.upload_file(path,start_print=False,level_before_print=level)
         if not uploaded: raise RuntimeError("Printer rejected file upload")
         started=await c.job_control.print_local_file(Path(path).name,leveling_before_print=level)
-        if not started: raise RuntimeError("File uploaded but printer rejected start command")
-        return {"started":True,"file":Path(path).name,"mode":"upload_then_start"}
+        if not started: raise RuntimeError("File uploaded but printer rejected explicit start command")
+        return {"started":True,"file":Path(path).name,"mode":"upload_then_explicit_start"}
 
 class H(BaseHTTPRequestHandler):
     def cors(self,code=200,ctype="application/json"):
@@ -76,10 +70,13 @@ class H(BaseHTTPRequestHandler):
                 name=self.headers.get("X-Filename","print.gcode")
                 if not name.lower().endswith((".gcode",".gx",".3mf")): return self.out({"error":"File must already be sliced (.gcode/.gx/.3mf)"},400)
                 n=int(self.headers.get("Content-Length","0")); raw=self.rfile.read(n)
-                fd,path=tempfile.mkstemp(suffix=Path(name).suffix); os.close(fd); Path(path).write_bytes(raw)
+                safe_name=Path(name).name
+                tmpdir=tempfile.mkdtemp(prefix="ungcad_")
+                path=str(Path(tmpdir)/safe_name); Path(path).write_bytes(raw)
                 try: return self.out(asyncio.run(print_file(path,self.headers.get("X-Level","true").lower()=="true")))
                 finally:
-                    try: os.unlink(path)
+                    try:
+                        os.unlink(path); os.rmdir(tmpdir)
                     except: pass
             return self.out({"error":"not found"},404)
         except Exception as e: self.out({"error":str(e)},500)
