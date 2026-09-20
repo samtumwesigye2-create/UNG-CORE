@@ -29,6 +29,8 @@ class SceneIn(BaseModel):
 def root(): return RedirectResponse(url="/studio.html")
 @app.get("/studio.html")
 def studio(): return FileResponse(BASE_DIR/"studio.html")
+@app.get("/studio")
+def studio_short(): return FileResponse(BASE_DIR/"studio.html")
 @app.get("/viewer.html")
 def viewer(): return FileResponse(BASE_DIR/"viewer.html")
 @app.get("/manufacturing.html")
