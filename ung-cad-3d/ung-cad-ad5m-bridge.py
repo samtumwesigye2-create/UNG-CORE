@@ -5,6 +5,7 @@ from urllib.parse import urlparse
 from flashforge import FlashForgeClient, FiveMClientConnectionOptions, PrinterDiscovery
 
 HOST="127.0.0.1"; PORT=8765
+BRIDGE_VERSION="2026-09-20-3"
 STATE={"printer":None,"check_code":None}
 
 async def discover():
@@ -54,7 +55,7 @@ class H(BaseHTTPRequestHandler):
     def out(self,obj,code=200): self.cors(code); self.wfile.write(json.dumps(obj).encode())
     def do_GET(self):
         try:
-            if self.path=="/health": return self.out({"ok":True,"bridge":"UNG-CAD AD5M","printer":STATE["printer"]})
+            if self.path=="/health": return self.out({"ok":True,"bridge":"UNG-CAD AD5M","version":BRIDGE_VERSION,"printer":STATE["printer"]})
             if self.path=="/discover": return self.out({"printers":asyncio.run(discover())})
             return self.out({"error":"not found"},404)
         except Exception as e: self.out({"error":str(e)},500)
