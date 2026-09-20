@@ -34,9 +34,18 @@ async def print_file(path, level=True):
     async with FlashForgeClient(p.ip_address,p.serial_number,STATE["check_code"],options=opts) as c:
         info=await c.get_printer_status()
         if not info: raise RuntimeError("Printer connection failed")
+        await c.init_control()
+        info=await c.get_printer_status()
+        if not info: raise RuntimeError("Printer control initialization failed")
         ok=await c.job_control.upload_file(path,start_print=True,level_before_print=level)
-        if not ok: raise RuntimeError("Printer rejected upload/start")
-        return {"started":True,"file":Path(path).name}
+        if ok:
+            return {"started":True,"file":Path(path).name,"mode":"upload_and_start"}
+        # Fallback for firmware that accepts upload but rejects the combined start request.
+        uploaded=await c.job_control.upload_file(path,start_print=False,level_before_print=level)
+        if not uploaded: raise RuntimeError("Printer rejected file upload")
+        started=await c.job_control.print_local_file(Path(path).name,leveling_before_print=level)
+        if not started: raise RuntimeError("File uploaded but printer rejected start command")
+        return {"started":True,"file":Path(path).name,"mode":"upload_then_start"}
 
 class H(BaseHTTPRequestHandler):
     def cors(self,code=200,ctype="application/json"):
