@@ -28,13 +28,34 @@ body:before{content:"";position:fixed;inset:0;pointer-events:none;background:rad
   <article class="card"><h2>Electronics</h2><p>KiCad-like electronics workspace is part of the production roadmap. This portable build reserves the workspace while schematic/PCB tools are integrated.</p><span class="disabled">Foundation reserved</span></article>
 </section>
 <div class="footer">UNG-CAD Studio • Internal engineering workstation</div>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <script>
 const B="http://127.0.0.1:8765",f=document.getElementById("pf"),st=document.getElementById("ps"),p=document.getElementById("pp"),pair=document.getElementById("pair"),pid=document.getElementById("pid");
 async function health(){try{const j=await fetch(B+"/health").then(r=>r.json());st.textContent=j.printer?"PAIRED — "+j.printer.name+" • "+j.printer.firmware:"Bridge ready — enter Printer ID to pair.";return true}catch{st.textContent="Local print bridge is not running. On the printing computer, run the Windows bridge launcher once.";return false}}
 pair.onclick=async()=>{if(!pid.value.trim())return st.textContent="Enter the Printer ID shown in Settings → Network → Network Mode.";pair.disabled=true;st.textContent="Discovering and pairing Adventurer 5M…";try{const r=await fetch(B+"/pair",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({printer_id:pid.value.trim()})});const j=await r.json();if(!r.ok)throw Error(j.error||"Pairing failed");st.textContent="PAIRED — "+j.printer.name+" • firmware "+j.printer.firmware+" • "+j.printer.ip;localStorage.setItem("ungcad_printer_id",pid.value.trim())}catch(e){st.textContent="PAIRING FAILED — "+e.message}finally{pair.disabled=false}};
 pid.value=localStorage.getItem("ungcad_printer_id")||"";
 f.onchange=()=>{const x=f.files[0];p.disabled=!x;st.textContent=x?"READY — "+x.name+". Print Project will transmit and start the job.":"Choose a sliced G-code/GX/3MF file."};
-p.onclick=async()=>{const x=f.files[0];if(!x)return;p.disabled=true;st.textContent="Sending "+x.name+" to Adventurer 5M…";try{const r=await fetch(B+"/print",{method:"POST",headers:{"Content-Type":"application/octet-stream","X-Filename":x.name,"X-Level":document.getElementById("level").checked?"true":"false"},body:x});const j=await r.json();if(!r.ok)throw Error(j.error||"Print failed");st.textContent="PRINT START COMMAND ACCEPTED — "+j.file}catch(e){st.textContent="PRINT DID NOT START — "+e.message}finally{p.disabled=false}};
+async function preparePrintFile(x){
+  const low=x.name.toLowerCase();
+  if(low.endsWith(".gcode.3mf")){
+    st.textContent="Opening Orca sliced package and extracting embedded G-code…";
+    const zip=await JSZip.loadAsync(await x.arrayBuffer());
+    let entry=null;
+    zip.forEach((path,e)=>{if(!e.dir&&path.toLowerCase().endsWith(".gcode")&&!entry)entry=e});
+    if(!entry)throw Error("This Orca .gcode.3mf package contains no embedded .gcode file");
+    const blob=await entry.async("blob");
+    const base=(entry.name.split("/").pop()||x.name).replace(/\.3mf$/i,"");
+    return {blob,name:base.toLowerCase().endsWith(".gcode")?base:(base+".gcode"),extracted:true};
+  }
+  return {blob:x,name:x.name,extracted:false};
+}
+p.onclick=async()=>{const x=f.files[0];if(!x)return;p.disabled=true;try{
+  const prepared=await preparePrintFile(x);
+  st.textContent=(prepared.extracted?"Embedded G-code extracted. ":"")+"Sending "+prepared.name+" to Adventurer 5M…";
+  const r=await fetch(B+"/print",{method:"POST",headers:{"Content-Type":"application/octet-stream","X-Filename":prepared.name,"X-Level":document.getElementById("level").checked?"true":"false"},body:prepared.blob});
+  const j=await r.json();if(!r.ok)throw Error(j.error||"Print failed");
+  st.textContent="PRINT START COMMAND ACCEPTED — "+j.file+(prepared.extracted?" (from Orca sliced package)":"");
+}catch(e){st.textContent="PRINT DID NOT START — "+e.message}finally{p.disabled=false}};
 health();
 </script></main>
 </body>
