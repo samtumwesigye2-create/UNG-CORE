@@ -8,6 +8,7 @@ from app.schemas.contracts import AuditEventIn, Principal
 from app.services.audit import record_audit
 from app.services.ml.model_registry import get_active_model, get_model
 from app.services.ml.serving_policy import evaluate_serving_policy
+from app.services.ml.human_review import assess_human_review
 
 router = APIRouter(prefix="/v1/ml/serving", tags=["machine-learning-serving"])
 
@@ -29,6 +30,9 @@ class ServingRequest(BaseModel):
     ensemble_threshold: float = Field(default=0.5, gt=0, lt=1)
     confidence_level: float = 0.95
     low_confidence_threshold: float = Field(default=0.70, ge=0.5, lt=1)
+    minimum_ensemble_agreement: float = Field(default=0.75, ge=0, le=1)
+    maximum_shadow_difference: float = Field(default=0.20, ge=0)
+    maximum_canary_difference: float = Field(default=0.20, ge=0)
     context: dict = Field(default_factory=dict)
 
 
@@ -95,6 +99,34 @@ async def serving_predict(
             "output_spread": result.selected_ensemble.output_spread,
         }
 
+    selected_low_confidence = bool(
+        result.selected_single is not None and result.selected_single.uncertainty.low_confidence
+    )
+    ensemble_agreement = (
+        result.selected_ensemble.agreement_fraction
+        if result.selected_ensemble is not None else None
+    )
+    shadow_difference = None
+    if result.shadows:
+        shadow_difference = max(
+            abs(item.explanation.output - result.primary.explanation.output)
+            for item in result.shadows
+        )
+    canary_difference = (
+        abs(result.canary.explanation.output - result.primary.explanation.output)
+        if result.canary is not None else None
+    )
+    review = assess_human_review(
+        selected_low_confidence=selected_low_confidence,
+        fallback_used=result.fallback_used,
+        ensemble_agreement=ensemble_agreement,
+        shadow_difference=shadow_difference,
+        canary_difference=canary_difference,
+        minimum_ensemble_agreement=body.minimum_ensemble_agreement,
+        maximum_shadow_difference=body.maximum_shadow_difference,
+        maximum_canary_difference=body.maximum_canary_difference,
+    )
+
     audit = await record_audit(db, AuditEventIn(
         actor_id=principal.subject,
         action="ml.serving_policy_prediction",
@@ -108,6 +140,7 @@ async def serving_predict(
             "canary_selected": result.canary_selected,
             "fallback_used": result.fallback_used,
             "shadows": [_single_payload(item) for item in result.shadows],
+            "human_review": {"required": review.required, "reasons": review.reasons, "severity": review.severity},
             "context": body.context,
         },
     ))
@@ -120,6 +153,7 @@ async def serving_predict(
         "canary_selected": result.canary_selected,
         "fallback_used": result.fallback_used,
         "shadows": [_single_payload(item) for item in result.shadows],
+        "human_review": {"required": review.required, "reasons": review.reasons, "severity": review.severity},
         "audit_event_id": audit.event_id,
         "occurred_at": audit.occurred_at,
     }
