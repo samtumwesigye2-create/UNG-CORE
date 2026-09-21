@@ -10,9 +10,8 @@ from app.services.ml.drift_monitoring import summarize_numeric
 from app.services.ml.linear_regression import predict_linear, train_linear_regression
 from app.services.ml.logistic_regression import predict_logistic, train_logistic_regression
 from app.services.ml.preprocessing import fit_preprocessor, serialize_preprocessor, transform_values
-from app.services.ml.production_performance import activate_model_with_production_gate, serialize_production_gate
+from app.services.ml.production_performance import production_gate_for_model, serialize_production_gate
 from app.services.ml.model_registry import (
-    activate_model,
     get_active_model,
     record_validation,
     register_model,
@@ -200,12 +199,11 @@ async def run_training_pipeline(
     promoted = False
     production_gate = None
     if promote_if_passed and evaluation.passed:
-        row, production_gate = await activate_model_with_production_gate(
-            db,
-            model_key,
-            row.version,
-        )
-        promoted = True
+        production_gate = await production_gate_for_model(db, row)
+        if production_gate.passed:
+            from app.services.ml.model_registry import activate_model
+            row = await activate_model(db, model_key, row.version)
+            promoted = True
 
     return TrainingPipelineResult(
         algorithm=algorithm,
