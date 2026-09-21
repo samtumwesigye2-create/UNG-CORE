@@ -16,6 +16,7 @@ ML_ACTIONS = {
     "ml.serving_policy_prediction",
     "ml.drift_check",
     "ml.prediction_feedback",
+    "ml.multifeature_prediction",
 }
 
 
@@ -51,6 +52,7 @@ def summarize_ml_health(model_rows: Sequence, audit_rows: Sequence) -> dict:
     ]
 
     single_predictions = [row for row in events if _action(row) == "ml.prediction"]
+    multifeature_predictions = [row for row in events if _action(row) == "ml.multifeature_prediction"]
     ensemble_predictions = [row for row in events if _action(row) == "ml.ensemble_prediction"]
     serving_predictions = [row for row in events if _action(row) == "ml.serving_policy_prediction"]
     drift_checks = [row for row in events if _action(row) == "ml.drift_check"]
@@ -136,6 +138,7 @@ def summarize_ml_health(model_rows: Sequence, audit_rows: Sequence) -> dict:
             "single_count": total_single,
             "ensemble_count": len(ensemble_predictions),
             "serving_policy_count": total_serving,
+            "multifeature_count": len(multifeature_predictions),
             "average_confidence": mean(confidence_scores) if confidence_scores else None,
             "low_confidence_count": low_confidence,
             "low_confidence_rate": (low_confidence / total_single) if total_single else None,
