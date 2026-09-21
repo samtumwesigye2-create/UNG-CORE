@@ -5,6 +5,7 @@ from math import exp, isfinite
 from typing import Sequence
 
 from app.services.ml.model_registry import serialize_model
+from app.services.ml.preprocessing import transform_value
 
 
 @dataclass(frozen=True)
@@ -45,7 +46,8 @@ def explain_prediction(model_row, value: float) -> PredictionExplanation:
     if not (isfinite(weight) and isfinite(bias)):
         raise ValueError("model parameters must be finite")
 
-    weighted_input = weight * x
+    transformed_x = transform_value(x, artifact.get("preprocessing"))
+    weighted_input = weight * transformed_x
     linear_score = weighted_input + bias
 
     if model["algorithm"] == "linear_regression":
@@ -83,10 +85,12 @@ def explain_prediction(model_row, value: float) -> PredictionExplanation:
             "weighted_input": weighted_input,
             "bias": bias,
             "linear_score": linear_score,
+            "transformed_input": transformed_x,
         },
         parameters={
             "weight": weight,
             "bias": bias,
+            "preprocessing": artifact.get("preprocessing", {"method": "none"}),
         },
         explanation=explanation,
     )
