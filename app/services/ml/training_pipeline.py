@@ -6,6 +6,7 @@ from typing import Sequence
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.services.ml.evaluation import evaluate_predictions, train_test_split_indices
+from app.services.ml.drift_monitoring import summarize_numeric
 from app.services.ml.linear_regression import predict_linear, train_linear_regression
 from app.services.ml.logistic_regression import predict_logistic, train_logistic_regression
 from app.services.ml.model_registry import (
@@ -155,6 +156,7 @@ async def run_training_pipeline(
     )
 
     model_metadata = dict(metadata or {})
+    model_metadata["training_baseline"] = {"x": summarize_numeric(train_x)}
     model_metadata["training_pipeline"] = {
         "seed": seed,
         "test_fraction": test_fraction,
