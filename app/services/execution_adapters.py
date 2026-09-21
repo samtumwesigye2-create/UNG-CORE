@@ -26,6 +26,31 @@ async def execute_adapter(db: AsyncSession, *, action: str, system_key: str | No
         raise RuntimeError(f"idempotent action already in progress: {idempotency_key}")
 
     try:
+        if action == "ml.health.evaluate":
+            from app.services.audit import list_audit_events
+            from app.services.ml.health_alerts import MLAlertThresholds, evaluate_and_raise_ml_alerts
+            from app.services.ml.model_registry import list_models
+
+            event_limit = int(payload.get("event_limit", 1000))
+            thresholds = MLAlertThresholds(
+                minimum_average_confidence=float(payload.get("minimum_average_confidence", 0.70)),
+                maximum_low_confidence_rate=float(payload.get("maximum_low_confidence_rate", 0.25)),
+                maximum_fallback_rate=float(payload.get("maximum_fallback_rate", 0.25)),
+                maximum_shadow_difference=float(payload.get("maximum_shadow_difference", 0.20)),
+                maximum_canary_difference=float(payload.get("maximum_canary_difference", 0.20)),
+            )
+            models = await list_models(db)
+            events = await list_audit_events(db, limit=event_limit)
+            evaluation = await evaluate_and_raise_ml_alerts(
+                db,
+                model_rows=models,
+                audit_rows=events,
+                thresholds=thresholds,
+            )
+            result = {"adapter": "ml.health.evaluate", **evaluation}
+            await complete_idempotent(db, idem, result)
+            return result
+
         if action == "event.publish":
             target = system_key or payload.get("target_system")
             if not target:
