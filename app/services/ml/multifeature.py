@@ -22,9 +22,9 @@ class MultiFeatureModel:
     threshold: float | None = None
 
 
-def _validate_matrix(x: Sequence[Sequence[float]]) -> tuple[list[list[float]], int]:
-    if len(x) < 2:
-        raise ValueError("at least two samples are required")
+def _validate_matrix(x: Sequence[Sequence[float]], *, minimum_samples: int = 2) -> tuple[list[list[float]], int]:
+    if len(x) < minimum_samples:
+        raise ValueError(f"at least {minimum_samples} sample(s) are required")
     rows = [[float(v) for v in row] for row in x]
     width = len(rows[0]) if rows else 0
     if width < 2:
@@ -55,7 +55,7 @@ def fit_matrix_preprocessor(x: Sequence[Sequence[float]], method: str = "standar
 
 
 def transform_matrix(x: Sequence[Sequence[float]], preprocessor: MatrixPreprocessor | dict) -> list[list[float]]:
-    rows, width = _validate_matrix(x)
+    rows, width = _validate_matrix(x, minimum_samples=1)
     if isinstance(preprocessor, dict):
         p = MatrixPreprocessor(
             method=str(preprocessor.get("method", "none")),
