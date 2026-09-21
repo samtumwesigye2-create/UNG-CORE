@@ -67,6 +67,8 @@ async def test_no_drift_does_not_retrain():
 async def test_drift_creates_candidate_and_promotes_when_gates_pass():
     db = FakeSession()
     active = await _active_linear_model(db)
+    # Simulate an active model that has become stale relative to the new regime.
+    active.artifact_json = '{"weight":1.0,"bias":0.0,"learning_rate":0.01,"epochs":1000}'
 
     x = [20, 21, 22, 23, 24, 25, 26, 27, 28, 29]
     y = [2 * value + 1 for value in x]
