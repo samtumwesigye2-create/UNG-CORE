@@ -73,7 +73,7 @@ def evaluate_production_performance(
     if not isfinite(maximum_degradation_fraction) or maximum_degradation_fraction < 0:
         raise ValueError("maximum_degradation_fraction must be a finite non-negative number")
 
-    model = serialize_model(model_row)
+    model = model_row if isinstance(model_row, dict) else serialize_model(model_row)
     model_key = str(model["model_key"])
     model_version = int(model["version"])
     algorithm = str(model["algorithm"])
@@ -188,6 +188,22 @@ async def load_feedback_events(db: AsyncSession, *, limit: int = 10000) -> list[
     return list((await db.execute(stmt)).scalars().all())
 
 
+async def production_gate_for_model(
+    db: AsyncSession,
+    model_row,
+    *,
+    minimum_feedback: int = 20,
+    maximum_degradation_fraction: float = 0.20,
+) -> ProductionPerformanceGate:
+    feedback = await load_feedback_events(db)
+    return evaluate_production_performance(
+        model_row,
+        feedback,
+        minimum_feedback=minimum_feedback,
+        maximum_degradation_fraction=maximum_degradation_fraction,
+    )
+
+
 async def activate_model_with_production_gate(
     db: AsyncSession,
     model_key: str,
@@ -201,10 +217,9 @@ async def activate_model_with_production_gate(
     row = await get_model(db, model_key, version)
     if row is None:
         raise LookupError("model version not found")
-    feedback = await load_feedback_events(db)
-    gate = evaluate_production_performance(
+    gate = await production_gate_for_model(
+        db,
         row,
-        feedback,
         minimum_feedback=minimum_feedback,
         maximum_degradation_fraction=maximum_degradation_fraction,
     )
