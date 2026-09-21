@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
-from math import isfinite, log, sqrt
+from math import isfinite, sqrt
 from statistics import mean
 from typing import Sequence
 
@@ -38,7 +38,7 @@ def _payload(row: AuditEvent) -> dict:
 async def get_prediction_event(db: AsyncSession, event_id: str) -> AuditEvent | None:
     stmt = select(AuditEvent).where(
         AuditEvent.event_id == event_id,
-        AuditEvent.action == "ml.prediction",
+        AuditEvent.action.in_(["ml.prediction", "ml.multifeature_prediction"]),
     )
     return (await db.execute(stmt)).scalar_one_or_none()
 
@@ -86,11 +86,11 @@ async def record_prediction_feedback(
     correct = None
     brier_score = None
 
-    if algorithm == "linear_regression":
+    if algorithm in {"linear_regression", "multivariate_linear_regression"}:
         error = predicted_value - observed
         absolute_error = abs(error)
         squared_error = error * error
-    elif algorithm == "logistic_regression":
+    elif algorithm in {"logistic_regression", "multivariate_logistic_regression"}:
         if observed not in (0.0, 1.0):
             raise ValueError("logistic regression ground truth must be 0 or 1")
         actual_class = int(observed)
@@ -101,7 +101,7 @@ async def record_prediction_feedback(
         correct = predicted_classification == actual_class
         brier_score = (predicted_value - actual_class) ** 2
     else:
-        raise ValueError("ground-truth feedback supports linear_regression and logistic_regression")
+        raise ValueError("ground-truth feedback supports linear and logistic regression models")
 
     feedback = await record_audit(
         db,
@@ -178,7 +178,7 @@ def summarize_feedback_events(rows: Sequence[AuditEvent | dict]) -> dict:
         )
         bucket["feedback_count"] += 1
 
-        if algorithm == "linear_regression":
+        if algorithm in {"linear_regression", "multivariate_linear_regression"}:
             ae = metrics.get("absolute_error")
             se = metrics.get("squared_error")
             if isinstance(ae, (int, float)) and isinstance(se, (int, float)):
@@ -186,7 +186,7 @@ def summarize_feedback_events(rows: Sequence[AuditEvent | dict]) -> dict:
                 regression_sq.append(float(se))
                 bucket["_abs"].append(float(ae))
                 bucket["_sq"].append(float(se))
-        elif algorithm == "logistic_regression":
+        elif algorithm in {"logistic_regression", "multivariate_logistic_regression"}:
             correct = metrics.get("correct")
             brier = metrics.get("brier_score")
             if isinstance(correct, bool):
