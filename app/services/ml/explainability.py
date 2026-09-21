@@ -18,7 +18,7 @@ class PredictionExplanation:
     classification: int | None
     threshold: float | None
     contributions: dict[str, float]
-    parameters: dict[str, float]
+    parameters: dict[str, object]
     explanation: str
 
 
