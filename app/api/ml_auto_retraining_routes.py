@@ -29,6 +29,7 @@ class AutoRetrainingRequest(BaseModel):
     std_ratio_threshold: float = Field(default=2.0, gt=1)
     performance_degradation_threshold: float = Field(default=0.15, gt=0, lt=1)
     promote_if_passed: bool = True
+    preprocessing: str = "standardize"
 
 
 @router.post("/{model_key}/run")
@@ -55,6 +56,7 @@ async def run_auto_retraining(
             std_ratio_threshold=body.std_ratio_threshold,
             performance_degradation_threshold=body.performance_degradation_threshold,
             promote_if_passed=body.promote_if_passed,
+            preprocessing=body.preprocessing,
         )
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc

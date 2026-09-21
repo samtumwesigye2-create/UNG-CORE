@@ -9,6 +9,7 @@ from app.services.ml.evaluation import evaluate_predictions, train_test_split_in
 from app.services.ml.drift_monitoring import summarize_numeric
 from app.services.ml.linear_regression import predict_linear, train_linear_regression
 from app.services.ml.logistic_regression import predict_logistic, train_logistic_regression
+from app.services.ml.preprocessing import fit_preprocessor, serialize_preprocessor, transform_values
 from app.services.ml.model_registry import (
     activate_model,
     get_active_model,
@@ -41,6 +42,7 @@ def _baseline_predictions(active, algorithm: str, test_x: list[float], threshold
     if active is None or active.algorithm != algorithm:
         return None
     artifact = serialize_model(active)["artifact"]
+    active_x = transform_values(test_x, artifact.get("preprocessing"))
     try:
         weight = float(artifact["weight"])
         bias = float(artifact["bias"])
@@ -48,9 +50,9 @@ def _baseline_predictions(active, algorithm: str, test_x: list[float], threshold
         return None
 
     if algorithm == "linear_regression":
-        return predict_linear(test_x, weight=weight, bias=bias)
+        return predict_linear(active_x, weight=weight, bias=bias)
     probabilities, _ = predict_logistic(
-        test_x,
+        active_x,
         weight=weight,
         bias=bias,
         threshold=threshold,
@@ -74,6 +76,7 @@ async def run_training_pipeline(
     gates: Sequence[dict] = (),
     metadata: dict | None = None,
     promote_if_passed: bool = False,
+    preprocessing: str = "standardize",
 ) -> TrainingPipelineResult:
     algorithm = algorithm.strip()
     if algorithm not in SUPPORTED_ALGORITHMS:
@@ -88,8 +91,11 @@ async def run_training_pipeline(
         test_fraction=test_fraction,
         seed=seed,
     )
-    train_x = [float(v) for v in _subset(x, train_indices)]
-    test_x = [float(v) for v in _subset(x, test_indices)]
+    raw_train_x = [float(v) for v in _subset(x, train_indices)]
+    raw_test_x = [float(v) for v in _subset(x, test_indices)]
+    preprocessor = fit_preprocessor(raw_train_x, method=preprocessing)
+    train_x = transform_values(raw_train_x, preprocessor)
+    test_x = transform_values(raw_test_x, preprocessor)
 
     active = await get_active_model(db, model_key)
     previous_active_version = active.version if active is not None else None
@@ -108,6 +114,7 @@ async def run_training_pipeline(
             "bias": trained.bias,
             "learning_rate": trained.learning_rate,
             "epochs": trained.epochs,
+            "preprocessing": serialize_preprocessor(preprocessor),
         }
         test_predictions = predict_linear(
             test_x,
@@ -132,6 +139,7 @@ async def run_training_pipeline(
             "learning_rate": trained.learning_rate,
             "epochs": trained.epochs,
             "threshold": threshold,
+            "preprocessing": serialize_preprocessor(preprocessor),
         }
         test_predictions, _ = predict_logistic(
             test_x,
@@ -145,7 +153,7 @@ async def run_training_pipeline(
             "accuracy": trained.accuracy,
         }
 
-    baseline_predictions = _baseline_predictions(active, algorithm, test_x, threshold)
+    baseline_predictions = _baseline_predictions(active, algorithm, raw_test_x, threshold)
     evaluation = evaluate_predictions(
         task=task,
         actual=test_y,
@@ -156,7 +164,8 @@ async def run_training_pipeline(
     )
 
     model_metadata = dict(metadata or {})
-    model_metadata["training_baseline"] = {"x": summarize_numeric(train_x)}
+    model_metadata["training_baseline"] = {"x": summarize_numeric(raw_train_x)}
+    model_metadata["preprocessing"] = serialize_preprocessor(preprocessor)
     model_metadata["training_pipeline"] = {
         "seed": seed,
         "test_fraction": test_fraction,

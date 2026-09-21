@@ -29,6 +29,7 @@ class TrainingPipelineRequest(BaseModel):
     gates: list[PromotionGate] = Field(default_factory=list, max_length=50)
     metadata: dict = Field(default_factory=dict)
     promote_if_passed: bool = False
+    preprocessing: str = "standardize"
 
 
 @router.post("/run")
@@ -53,6 +54,7 @@ async def run_pipeline(
             gates=[gate.model_dump() for gate in body.gates],
             metadata=body.metadata,
             promote_if_passed=body.promote_if_passed,
+            preprocessing=body.preprocessing,
         )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
