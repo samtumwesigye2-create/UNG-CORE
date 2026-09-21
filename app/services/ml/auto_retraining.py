@@ -38,6 +38,7 @@ async def run_controlled_auto_retraining(
     std_ratio_threshold: float = 2.0,
     performance_degradation_threshold: float = 0.15,
     promote_if_passed: bool = True,
+    preprocessing: str = "standardize",
 ) -> AutoRetrainingResult:
     active = await get_active_model(db, model_key)
     if active is None:
@@ -98,6 +99,7 @@ async def run_controlled_auto_retraining(
             }
         },
         promote_if_passed=promote_if_passed,
+        preprocessing=preprocessing,
     )
 
     latest_active = await get_active_model(db, model_key)
