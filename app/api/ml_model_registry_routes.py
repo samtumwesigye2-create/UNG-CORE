@@ -96,7 +96,9 @@ async def activate(
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
-    return {"model": serialize_model(row), "production_gate": serialize_production_gate(production_gate)}
+    response = serialize_model(row)
+    response["production_gate"] = serialize_production_gate(production_gate)
+    return response
 
 
 @router.post("/{model_key}/versions/{version}/retire")
