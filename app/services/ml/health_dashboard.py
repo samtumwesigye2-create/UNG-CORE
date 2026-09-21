@@ -77,7 +77,7 @@ def summarize_ml_health(model_rows: Sequence, audit_rows: Sequence) -> dict:
                     shadow_differences.append(abs(float(shadow_output) - float(primary_output)))
 
     latest_drift: dict[str, dict] = {}
-    ordered_drift = sorted(drift_checks, key=lambda row: _occurred_at(row) or "", reverse=True)
+    ordered_drift = sorted(drift_checks, key=lambda row: str(_occurred_at(row) or ""), reverse=True)
     for row in ordered_drift:
         payload = _payload(row)
         key = str(payload.get("model_key", ""))
