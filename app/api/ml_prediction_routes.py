@@ -90,6 +90,8 @@ async def predict_version(
             input_value=body.value,
             actor_id=principal.subject,
             request_context=body.context,
+            confidence_level=body.confidence_level,
+            low_confidence_threshold=body.low_confidence_threshold,
         )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
