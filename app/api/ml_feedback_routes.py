@@ -7,6 +7,8 @@ from app.db.session import get_db
 from app.schemas.contracts import Principal
 from app.services.audit import list_audit_events
 from app.services.ml.feedback import record_prediction_feedback, summarize_feedback_events
+from app.services.ml.model_registry import get_model
+from app.services.ml.production_performance import evaluate_production_performance, serialize_production_gate
 
 router = APIRouter(prefix="/v1/ml/feedback", tags=["machine-learning-feedback"])
 
@@ -63,3 +65,26 @@ async def feedback_summary(
 ):
     rows = await list_audit_events(db, action="ml.prediction_feedback", limit=limit)
     return summarize_feedback_events(rows)
+
+
+@router.get("/{model_key}/versions/{version}/production-score")
+async def production_score(
+    model_key: str,
+    version: int,
+    minimum_feedback: int = Query(default=20, ge=1, le=100000),
+    maximum_degradation_fraction: float = Query(default=0.20, ge=0, le=10),
+    limit: int = Query(default=10000, ge=1, le=10000),
+    db: AsyncSession = Depends(get_db),
+    _: Principal = Depends(require_permission("ung.core.ml.monitor")),
+):
+    row = await get_model(db, model_key, version)
+    if row is None:
+        raise HTTPException(status_code=404, detail="model version not found")
+    feedback = await list_audit_events(db, action="ml.prediction_feedback", limit=limit)
+    gate = evaluate_production_performance(
+        row,
+        feedback,
+        minimum_feedback=minimum_feedback,
+        maximum_degradation_fraction=maximum_degradation_fraction,
+    )
+    return serialize_production_gate(gate)

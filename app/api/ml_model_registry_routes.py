@@ -5,8 +5,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.security import require_permission
 from app.db.session import get_db
 from app.schemas.contracts import Principal
+from app.services.ml.production_performance import activate_model_with_production_gate, serialize_production_gate
 from app.services.ml.model_registry import (
-    activate_model,
     get_active_model,
     get_model,
     list_models,
@@ -91,12 +91,14 @@ async def activate(
     _: Principal = Depends(require_permission("ung.core.ml.models.activate")),
 ):
     try:
-        row = await activate_model(db, model_key, version)
+        row, production_gate = await activate_model_with_production_gate(db, model_key, version)
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
-    return serialize_model(row)
+    response = serialize_model(row)
+    response["production_gate"] = serialize_production_gate(production_gate)
+    return response
 
 
 @router.post("/{model_key}/versions/{version}/retire")
