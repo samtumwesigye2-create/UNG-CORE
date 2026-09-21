@@ -6,6 +6,7 @@ from statistics import mean
 from typing import Sequence
 
 from app.services.ml.model_registry import serialize_model
+from app.services.ml.production_performance import evaluate_production_performance, serialize_production_gate
 from app.services.ml.feedback import summarize_feedback_events
 
 
@@ -44,6 +45,10 @@ def summarize_ml_health(model_rows: Sequence, audit_rows: Sequence) -> dict:
     status_counts = Counter(model.get("status") for model in models)
     algorithm_counts = Counter(model.get("algorithm") for model in models)
     active_models = [model for model in models if model.get("status") == "active"]
+    active_model_rows = [
+        row for row, model in zip(model_rows, models)
+        if model.get("status") == "active"
+    ]
 
     single_predictions = [row for row in events if _action(row) == "ml.prediction"]
     ensemble_predictions = [row for row in events if _action(row) == "ml.ensemble_prediction"]
@@ -104,6 +109,18 @@ def summarize_ml_health(model_rows: Sequence, audit_rows: Sequence) -> dict:
             "validation": (model.get("metadata") or {}).get("validation", {}),
         })
 
+    production_gates = [
+        serialize_production_gate(
+            evaluate_production_performance(
+                row,
+                events,
+                minimum_feedback=20,
+                maximum_degradation_fraction=0.20,
+            )
+        )
+        for row in active_model_rows
+    ]
+
     total_single = len(single_predictions)
     total_serving = len(serving_predictions)
 
@@ -133,6 +150,11 @@ def summarize_ml_health(model_rows: Sequence, audit_rows: Sequence) -> dict:
             "average_shadow_absolute_difference": mean(shadow_differences) if shadow_differences else None,
         },
         "production_feedback": summarize_feedback_events(feedback_events),
+        "production_performance": {
+            "gates": production_gates,
+            "degraded_count": sum(item["degraded"] is True for item in production_gates),
+            "blocked_count": sum(item["passed"] is False for item in production_gates),
+        },
         "drift": {
             "check_count": len(drift_checks),
             "latest_by_model": latest_drift,
