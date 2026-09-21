@@ -5,6 +5,7 @@ from app.services.ml.linear_regression import predict_linear, train_linear_regre
 from app.services.ml.logistic_regression import predict_logistic, train_logistic_regression
 from app.services.ml.anomaly_detection import AnomalyBaseline, detect_anomalies, fit_anomaly_baseline, score_anomalies
 from app.services.ml.time_series import forecast_time_series
+from app.services.ml.clustering import fit_kmeans, predict_clusters
 
 router = APIRouter(prefix="/v1/ml", tags=["machine-learning"])
 
@@ -185,3 +186,38 @@ async def forecast_series(request: TimeSeriesForecastRequest):
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return result.__dict__
+
+
+class KMeansFitRequest(BaseModel):
+    points: list[list[float]] = Field(min_length=2, max_length=100000)
+    k: int = Field(ge=1)
+    max_iterations: int = Field(default=100, ge=1, le=10000)
+    tolerance: float = Field(default=1e-6, ge=0)
+
+
+class KMeansPredictRequest(BaseModel):
+    points: list[list[float]] = Field(min_length=1, max_length=100000)
+    centroids: list[list[float]] = Field(min_length=1, max_length=10000)
+
+
+@router.post("/clustering/kmeans/fit")
+async def fit_kmeans_route(request: KMeansFitRequest):
+    try:
+        result = fit_kmeans(
+            request.points,
+            k=request.k,
+            max_iterations=request.max_iterations,
+            tolerance=request.tolerance,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return result.__dict__
+
+
+@router.post("/clustering/kmeans/predict")
+async def predict_kmeans_route(request: KMeansPredictRequest):
+    try:
+        labels = predict_clusters(request.points, centroids=request.centroids)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return {"labels": labels}
