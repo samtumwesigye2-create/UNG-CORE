@@ -85,7 +85,7 @@ def evaluate_production_performance(
     feedback_count = len(feedback)
     validation = (model.get("metrics") or {}).get("validation", {})
 
-    if algorithm == "linear_regression":
+    if algorithm in {"linear_regression", "multivariate_linear_regression"}:
         validation_metric = "rmse"
         raw_validation = validation.get("rmse")
         squared_errors = []
@@ -94,7 +94,7 @@ def evaluate_production_performance(
             if isinstance(value, (int, float)) and isfinite(float(value)) and float(value) >= 0:
                 squared_errors.append(float(value))
         production_value = sqrt(mean(squared_errors)) if squared_errors else None
-    elif algorithm == "logistic_regression":
+    elif algorithm in {"logistic_regression", "multivariate_logistic_regression"}:
         validation_metric = "accuracy"
         raw_validation = validation.get("accuracy")
         correct_values = []
@@ -106,7 +106,7 @@ def evaluate_production_performance(
             sum(correct_values) / len(correct_values) if correct_values else None
         )
     else:
-        raise ValueError("production performance gates support linear_regression and logistic_regression")
+        raise ValueError("production performance gates support linear and logistic regression models")
 
     validation_value = None
     if raw_validation is not None:
@@ -152,7 +152,7 @@ def evaluate_production_performance(
         )
 
     denominator = max(abs(validation_value), 1e-12)
-    if algorithm == "linear_regression":
+    if algorithm in {"linear_regression", "multivariate_linear_regression"}:
         degradation = (production_value - validation_value) / denominator
     else:
         degradation = (validation_value - production_value) / denominator
