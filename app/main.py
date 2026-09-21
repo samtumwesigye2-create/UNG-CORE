@@ -48,6 +48,7 @@ from app.api.ml_auto_retraining_routes import router as ml_auto_retraining_route
 from app.api.ml_explainability_routes import router as ml_explainability_router
 from app.api.ml_prediction_routes import router as ml_prediction_router
 from app.api.ml_tuning_routes import router as ml_tuning_router
+from app.api.ml_ensemble_routes import router as ml_ensemble_router
 from app.core.config import settings
 from app.core.hardening import production_readiness
 from app.db.base import Base
@@ -96,4 +97,4 @@ async def hardening_middleware(request: Request, call_next):
 @app.get("/", include_in_schema=False)
 async def root(): return RedirectResponse(url="/v1/control-center/ui", status_code=307)
 
-app.include_router(router); app.include_router(ml_router); app.include_router(ml_model_registry_router); app.include_router(ml_evaluation_router); app.include_router(ml_training_pipeline_router); app.include_router(ml_drift_router); app.include_router(ml_auto_retraining_router); app.include_router(ml_explainability_router); app.include_router(ml_prediction_router); app.include_router(ml_tuning_router); app.include_router(auth_router); app.include_router(control_center_router); app.include_router(operator_router); app.include_router(gateway_router); app.include_router(routing_router); app.include_router(telemetry_router); app.include_router(alerting_router); app.include_router(audit_command_router); app.include_router(approval_router); app.include_router(scheduler_router); app.include_router(event_delivery_router); app.include_router(recovery_router); app.include_router(resource_router); app.include_router(unified_operations_router)
+app.include_router(router); app.include_router(ml_router); app.include_router(ml_model_registry_router); app.include_router(ml_evaluation_router); app.include_router(ml_training_pipeline_router); app.include_router(ml_drift_router); app.include_router(ml_auto_retraining_router); app.include_router(ml_explainability_router); app.include_router(ml_prediction_router); app.include_router(ml_tuning_router); app.include_router(ml_ensemble_router); app.include_router(auth_router); app.include_router(control_center_router); app.include_router(operator_router); app.include_router(gateway_router); app.include_router(routing_router); app.include_router(telemetry_router); app.include_router(alerting_router); app.include_router(audit_command_router); app.include_router(approval_router); app.include_router(scheduler_router); app.include_router(event_delivery_router); app.include_router(recovery_router); app.include_router(resource_router); app.include_router(unified_operations_router)
