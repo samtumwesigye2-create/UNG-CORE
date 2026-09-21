@@ -3,6 +3,7 @@ from pydantic import BaseModel, Field
 
 from app.services.ml.linear_regression import predict_linear, train_linear_regression
 from app.services.ml.logistic_regression import predict_logistic, train_logistic_regression
+from app.services.ml.anomaly_detection import AnomalyBaseline, detect_anomalies, fit_anomaly_baseline, score_anomalies
 
 router = APIRouter(prefix="/v1/ml", tags=["machine-learning"])
 
@@ -95,3 +96,70 @@ async def predict_logistic_route(request: LogisticRegressionPredictRequest):
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return {"probabilities": probabilities, "predictions": predictions}
+
+
+class AnomalyFitRequest(BaseModel):
+    values: list[float] = Field(min_length=3, max_length=100000)
+    method: str = "zscore"
+    threshold: float | None = Field(default=None, gt=0)
+
+
+class AnomalyScoreRequest(BaseModel):
+    values: list[float] = Field(min_length=1, max_length=100000)
+    method: str = "zscore"
+    center: float
+    scale: float = Field(gt=0)
+    threshold: float = Field(default=3.0, gt=0)
+
+
+class AnomalyDetectRequest(BaseModel):
+    values: list[float] = Field(min_length=3, max_length=100000)
+    method: str = "zscore"
+    threshold: float | None = Field(default=None, gt=0)
+
+
+@router.post("/anomaly-detection/fit")
+async def fit_anomaly(request: AnomalyFitRequest):
+    try:
+        baseline = fit_anomaly_baseline(
+            request.values, method=request.method, threshold=request.threshold
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return baseline.__dict__
+
+
+@router.post("/anomaly-detection/score")
+async def score_anomaly(request: AnomalyScoreRequest):
+    try:
+        baseline = AnomalyBaseline(
+            method=request.method,
+            center=request.center,
+            scale=request.scale,
+            threshold=request.threshold,
+        )
+        result = score_anomalies(request.values, baseline)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return {
+        "baseline": result.baseline.__dict__,
+        "scores": result.scores,
+        "anomalies": result.anomalies,
+        "anomaly_indices": result.anomaly_indices,
+    }
+
+
+@router.post("/anomaly-detection/detect")
+async def detect_anomaly(request: AnomalyDetectRequest):
+    try:
+        result = detect_anomalies(
+            request.values, method=request.method, threshold=request.threshold
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return {
+        "baseline": result.baseline.__dict__,
+        "scores": result.scores,
+        "anomalies": result.anomalies,
+        "anomaly_indices": result.anomaly_indices,
+    }
