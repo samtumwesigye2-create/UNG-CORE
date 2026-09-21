@@ -42,6 +42,7 @@ from app.api.unified_operations_routes import router as unified_operations_route
 from app.api.ml_routes import router as ml_router
 from app.api.ml_model_registry_routes import router as ml_model_registry_router
 from app.api.ml_evaluation_routes import router as ml_evaluation_router
+from app.api.ml_training_pipeline_routes import router as ml_training_pipeline_router
 from app.core.config import settings
 from app.core.hardening import production_readiness
 from app.db.base import Base
@@ -90,4 +91,4 @@ async def hardening_middleware(request: Request, call_next):
 @app.get("/", include_in_schema=False)
 async def root(): return RedirectResponse(url="/v1/control-center/ui", status_code=307)
 
-app.include_router(router); app.include_router(ml_router); app.include_router(ml_model_registry_router); app.include_router(ml_evaluation_router); app.include_router(auth_router); app.include_router(control_center_router); app.include_router(operator_router); app.include_router(gateway_router); app.include_router(routing_router); app.include_router(telemetry_router); app.include_router(alerting_router); app.include_router(audit_command_router); app.include_router(approval_router); app.include_router(scheduler_router); app.include_router(event_delivery_router); app.include_router(recovery_router); app.include_router(resource_router); app.include_router(unified_operations_router)
+app.include_router(router); app.include_router(ml_router); app.include_router(ml_model_registry_router); app.include_router(ml_evaluation_router); app.include_router(ml_training_pipeline_router); app.include_router(auth_router); app.include_router(control_center_router); app.include_router(operator_router); app.include_router(gateway_router); app.include_router(routing_router); app.include_router(telemetry_router); app.include_router(alerting_router); app.include_router(audit_command_router); app.include_router(approval_router); app.include_router(scheduler_router); app.include_router(event_delivery_router); app.include_router(recovery_router); app.include_router(resource_router); app.include_router(unified_operations_router)
