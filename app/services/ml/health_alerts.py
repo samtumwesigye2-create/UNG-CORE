@@ -112,6 +112,13 @@ def evaluate_ml_health_findings(model_rows: Sequence, audit_rows: Sequence, thre
                 },
             })
 
+    if dashboard.get("production_performance", {}).get("degraded_count", 0) > 0:
+        findings.append({
+            "state": "ml_production_performance_degraded",
+            "severity": "critical",
+            "details": dashboard["production_performance"],
+        })
+
     if dashboard["drift"]["models_with_detected_drift"] > 0:
         findings.append({
             "state": "ml_drift_detected",
@@ -161,6 +168,7 @@ async def ensure_ml_alert_policy(db: AsyncSession) -> AlertPolicy:
             "ml_canary_divergence",
             "ml_drift_detected",
             "ml_active_validation_failed",
+            "ml_production_performance_degraded",
         ]),
         escalation_minutes_json=json.dumps([5, 15, 30]),
         targets_json=json.dumps(["ml-operators"]),
