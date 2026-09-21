@@ -4,7 +4,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.security import require_permission
 from app.db.session import get_db
-from app.schemas.contracts import Principal
+from app.schemas.contracts import AuditEventIn, Principal
+from app.services.audit import record_audit
 from app.services.ml.drift_monitoring import monitor_model_drift
 from app.services.ml.model_registry import get_active_model
 
@@ -24,7 +25,7 @@ async def check_model_drift(
     model_key: str,
     body: DriftCheckRequest,
     db: AsyncSession = Depends(get_db),
-    _: Principal = Depends(require_permission("ung.core.ml.monitor")),
+    principal: Principal = Depends(require_permission("ung.core.ml.monitor")),
 ):
     row = await get_active_model(db, model_key)
     if row is None:
@@ -41,7 +42,7 @@ async def check_model_drift(
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
-    return {
+    payload = {
         "model_key": model_key,
         "model_version": row.version,
         "data_drift": result.data_drift,
@@ -49,3 +50,14 @@ async def check_model_drift(
         "drift_detected": result.drift_detected,
         "retraining_recommended": result.retraining_recommended,
     }
+    await record_audit(
+        db,
+        AuditEventIn(
+            actor_id=principal.subject,
+            action="ml.drift_check",
+            resource_type="ml_model",
+            resource_id=f"{model_key}:v{row.version}",
+            payload=payload,
+        ),
+    )
+    return payload
