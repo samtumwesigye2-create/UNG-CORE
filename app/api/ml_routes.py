@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 from app.services.ml.linear_regression import predict_linear, train_linear_regression
+from app.services.ml.logistic_regression import predict_logistic, train_logistic_regression
 
 router = APIRouter(prefix="/v1/ml", tags=["machine-learning"])
 
@@ -50,3 +51,47 @@ async def predict(request: LinearRegressionPredictRequest):
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return {"predictions": predictions}
+
+
+class LogisticRegressionTrainRequest(BaseModel):
+    x: list[float] = Field(min_length=2, max_length=10000)
+    y: list[int] = Field(min_length=2, max_length=10000)
+    learning_rate: float = Field(default=0.01, gt=0)
+    epochs: int = Field(default=1000, ge=1, le=100000)
+    threshold: float = Field(default=0.5, gt=0, lt=1)
+
+
+class LogisticRegressionPredictRequest(BaseModel):
+    x: list[float] = Field(min_length=1, max_length=10000)
+    weight: float
+    bias: float
+    threshold: float = Field(default=0.5, gt=0, lt=1)
+
+
+@router.post("/logistic-regression/train")
+async def train_logistic(request: LogisticRegressionTrainRequest):
+    try:
+        result = train_logistic_regression(
+            request.x,
+            request.y,
+            learning_rate=request.learning_rate,
+            epochs=request.epochs,
+            threshold=request.threshold,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return result.__dict__
+
+
+@router.post("/logistic-regression/predict")
+async def predict_logistic_route(request: LogisticRegressionPredictRequest):
+    try:
+        probabilities, predictions = predict_logistic(
+            request.x,
+            weight=request.weight,
+            bias=request.bias,
+            threshold=request.threshold,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return {"probabilities": probabilities, "predictions": predictions}
