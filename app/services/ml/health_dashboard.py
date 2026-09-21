@@ -6,6 +6,7 @@ from statistics import mean
 from typing import Sequence
 
 from app.services.ml.model_registry import serialize_model
+from app.services.ml.feedback import summarize_feedback_events
 
 
 ML_ACTIONS = {
@@ -13,6 +14,7 @@ ML_ACTIONS = {
     "ml.ensemble_prediction",
     "ml.serving_policy_prediction",
     "ml.drift_check",
+    "ml.prediction_feedback",
 }
 
 
@@ -47,6 +49,7 @@ def summarize_ml_health(model_rows: Sequence, audit_rows: Sequence) -> dict:
     ensemble_predictions = [row for row in events if _action(row) == "ml.ensemble_prediction"]
     serving_predictions = [row for row in events if _action(row) == "ml.serving_policy_prediction"]
     drift_checks = [row for row in events if _action(row) == "ml.drift_check"]
+    feedback_events = [row for row in events if _action(row) == "ml.prediction_feedback"]
 
     confidence_scores: list[float] = []
     low_confidence = 0
@@ -129,6 +132,7 @@ def summarize_ml_health(model_rows: Sequence, audit_rows: Sequence) -> dict:
             "shadow_comparison_count": len(shadow_differences),
             "average_shadow_absolute_difference": mean(shadow_differences) if shadow_differences else None,
         },
+        "production_feedback": summarize_feedback_events(feedback_events),
         "drift": {
             "check_count": len(drift_checks),
             "latest_by_model": latest_drift,
