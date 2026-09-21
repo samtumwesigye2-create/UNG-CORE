@@ -6,6 +6,7 @@ from app.api.security import require_permission
 from app.db.session import get_db
 from app.schemas.contracts import Principal
 from app.services.ml.champion_challenger import lifecycle_snapshot, promote_challenger
+from app.services.ml.auto_rollback import evaluate_auto_rollback
 
 router = APIRouter(prefix="/v1/ml/lifecycle", tags=["machine-learning-lifecycle"])
 
@@ -62,3 +63,41 @@ async def promote(
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+class AutoRollbackRequest(BaseModel):
+    minimum_feedback: int = Field(default=20, ge=1, le=100000)
+    maximum_production_degradation: float = Field(default=0.20, ge=0)
+    maximum_low_confidence_rate: float = Field(default=0.50, ge=0, le=1)
+    minimum_prediction_samples: int = Field(default=20, ge=1, le=100000)
+
+
+@router.post("/{model_key}/auto-rollback")
+async def auto_rollback(
+    model_key: str,
+    body: AutoRollbackRequest,
+    db: AsyncSession = Depends(get_db),
+    principal: Principal = Depends(require_permission("ung.core.ml.models.activate")),
+):
+    try:
+        result = await evaluate_auto_rollback(
+            db,
+            model_key=model_key,
+            actor_id=principal.subject,
+            minimum_feedback=body.minimum_feedback,
+            maximum_production_degradation=body.maximum_production_degradation,
+            maximum_low_confidence_rate=body.maximum_low_confidence_rate,
+            minimum_prediction_samples=body.minimum_prediction_samples,
+        )
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return {
+        "model_key": result.model_key,
+        "triggered": result.triggered,
+        "reasons": result.reasons,
+        "previous_version": result.previous_version,
+        "active_version": result.active_version,
+        "rollback_version": result.rollback_version,
+    }

@@ -6,6 +6,7 @@ from typing import Sequence
 
 from app.services.ml.model_registry import serialize_model
 from app.services.ml.preprocessing import transform_value
+from app.services.ml.calibration import apply_platt_calibration
 
 
 @dataclass(frozen=True)
@@ -62,7 +63,9 @@ def explain_prediction(model_row, value: float) -> PredictionExplanation:
         threshold = float(artifact.get("threshold", 0.5))
         if not 0.0 < threshold < 1.0:
             raise ValueError("logistic model threshold must be between 0 and 1")
-        output = _sigmoid(linear_score)
+        raw_probability = _sigmoid(linear_score)
+        calibration = (model.get("metadata") or {}).get("probability_calibration")
+        output = apply_platt_calibration(raw_probability, calibration)
         classification = 1 if output >= threshold else 0
         direction = "above" if classification == 1 else "below"
         explanation = (
@@ -91,6 +94,7 @@ def explain_prediction(model_row, value: float) -> PredictionExplanation:
             "weight": weight,
             "bias": bias,
             "preprocessing": artifact.get("preprocessing", {"method": "none"}),
+            "probability_calibration": (model.get("metadata") or {}).get("probability_calibration"),
         },
         explanation=explanation,
     )
