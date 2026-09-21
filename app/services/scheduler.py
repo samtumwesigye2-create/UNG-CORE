@@ -87,9 +87,24 @@ async def mark_job_result(db: AsyncSession, job_id: str, *, succeeded: bool, err
         raise LookupError(job_id)
     row.attempts += 1
     if succeeded:
-        row.status = "succeeded"
-        row.completed_at = _utcnow()
-        row.last_error = None
+        payload = json.loads(row.payload_json or "{}")
+        repeat_interval_seconds = int(payload.get("_repeat_interval_seconds") or 0)
+        if repeat_interval_seconds > 0:
+            if repeat_interval_seconds < 60:
+                raise ValueError("_repeat_interval_seconds must be at least 60")
+            payload["idempotency_key"] = f"job:{row.job_id}:{uuid.uuid4()}"
+            row.payload_json = json.dumps(payload, separators=(",", ":"), sort_keys=True)
+            row.status = "scheduled"
+            row.attempts = 0
+            row.started_at = None
+            row.completed_at = None
+            row.last_error = None
+            row.scheduled_for = _utcnow() + timedelta(seconds=repeat_interval_seconds)
+            row.next_attempt_at = row.scheduled_for
+        else:
+            row.status = "succeeded"
+            row.completed_at = _utcnow()
+            row.last_error = None
     elif row.attempts >= row.max_attempts:
         row.status = "failed"
         row.completed_at = _utcnow()
