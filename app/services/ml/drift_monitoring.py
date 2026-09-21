@@ -9,6 +9,7 @@ from app.services.ml.evaluation import binary_classification_metrics, regression
 from app.services.ml.linear_regression import predict_linear
 from app.services.ml.logistic_regression import predict_logistic
 from app.services.ml.model_registry import serialize_model
+from app.services.ml.preprocessing import transform_values
 
 
 @dataclass(frozen=True)
@@ -103,8 +104,10 @@ def evaluate_model_performance(
     except (KeyError, TypeError, ValueError) as exc:
         raise ValueError("model artifact must contain numeric weight and bias") from exc
 
+    transformed_x = transform_values(x, artifact.get("preprocessing"))
+
     if algorithm == "linear_regression":
-        predictions = predict_linear(x, weight=weight, bias=bias)
+        predictions = predict_linear(transformed_x, weight=weight, bias=bias)
         current_metrics = regression_metrics(y, predictions)
         reference_metric = validation_metrics.get("rmse")
         current_metric = current_metrics["rmse"]
@@ -119,7 +122,7 @@ def evaluate_model_performance(
         primary_metric = "rmse"
     elif algorithm == "logistic_regression":
         threshold = float(artifact.get("threshold", 0.5))
-        probabilities, _ = predict_logistic(x, weight=weight, bias=bias, threshold=threshold)
+        probabilities, _ = predict_logistic(transformed_x, weight=weight, bias=bias, threshold=threshold)
         current_metrics = binary_classification_metrics(y, probabilities, threshold=threshold)
         reference_metric = validation_metrics.get("f1")
         current_metric = current_metrics["f1"]
