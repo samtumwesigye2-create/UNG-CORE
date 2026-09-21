@@ -150,12 +150,57 @@ async def list_models(db: AsyncSession, model_key: str | None = None) -> list[ML
     return list((await db.execute(stmt)).scalars().all())
 
 
+async def record_validation(
+    db: AsyncSession,
+    model_key: str,
+    version: int,
+    *,
+    task: str,
+    metrics: dict,
+    baseline_metrics: dict | None,
+    baseline_improvement: dict | None,
+    gates: list[dict],
+    passed: bool,
+    validated_by: str,
+) -> MLModelVersion:
+    target = await get_model(db, model_key, version)
+    if target is None:
+        raise LookupError("model version not found")
+    if target.status == "retired":
+        raise ValueError("retired model versions cannot be validated")
+
+    metadata = json.loads(target.metadata_json or "{}")
+    metadata["validation"] = {
+        "task": task,
+        "passed": bool(passed),
+        "gates": gates,
+        "baseline_metrics": baseline_metrics,
+        "baseline_improvement": baseline_improvement,
+        "validated_by": validated_by,
+        "validated_at": _now().isoformat(),
+    }
+    stored_metrics = json.loads(target.metrics_json or "{}")
+    stored_metrics["validation"] = metrics
+    target.metadata_json = _serialize_json(metadata)
+    target.metrics_json = _serialize_json(stored_metrics)
+
+    if not hasattr(db, "ml_models"):
+        await db.commit()
+        await db.refresh(target)
+    return target
+
+
 async def activate_model(db: AsyncSession, model_key: str, version: int) -> MLModelVersion:
     target = await get_model(db, model_key, version)
     if target is None:
         raise LookupError("model version not found")
     if target.status == "retired":
         raise ValueError("retired model versions cannot be activated")
+
+    metadata = json.loads(target.metadata_json or "{}")
+    validation = metadata.get("validation")
+    if not isinstance(validation, dict) or validation.get("passed") is not True:
+        raise ValueError("model version has not passed validation and promotion gates")
 
     now = _now()
     if hasattr(db, "ml_models"):

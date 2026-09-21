@@ -22,7 +22,7 @@ async def _register(db, model_key="demand-forecast", algorithm="linear_trend"):
         algorithm=algorithm,
         artifact={"slope": 2.0, "intercept": 1.0},
         metrics={"rmse": 0.1},
-        metadata={"dataset": "demo"},
+        metadata={"dataset": "demo", "validation": {"passed": True}},
         created_by="tester",
     )
 
@@ -49,6 +49,22 @@ async def test_activation_keeps_only_one_active_version():
     assert (await get_active_model(db, first.model_key)).version == 2
     assert first.status == "registered"
     assert second.status == "active"
+
+
+@pytest.mark.asyncio
+async def test_unvalidated_model_cannot_be_activated():
+    db = FakeSession()
+    row = await register_model(
+        db,
+        model_key="unvalidated",
+        algorithm="linear_trend",
+        artifact={"slope": 1.0, "intercept": 0.0},
+        metrics={},
+        metadata={},
+        created_by="tester",
+    )
+    with pytest.raises(ValueError, match="promotion gates"):
+        await activate_model(db, row.model_key, row.version)
 
 
 @pytest.mark.asyncio
