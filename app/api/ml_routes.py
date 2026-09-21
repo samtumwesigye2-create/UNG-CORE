@@ -4,6 +4,7 @@ from pydantic import BaseModel, Field
 from app.services.ml.linear_regression import predict_linear, train_linear_regression
 from app.services.ml.logistic_regression import predict_logistic, train_logistic_regression
 from app.services.ml.anomaly_detection import AnomalyBaseline, detect_anomalies, fit_anomaly_baseline, score_anomalies
+from app.services.ml.time_series import forecast_time_series
 
 router = APIRouter(prefix="/v1/ml", tags=["machine-learning"])
 
@@ -163,3 +164,24 @@ async def detect_anomaly(request: AnomalyDetectRequest):
         "anomalies": result.anomalies,
         "anomaly_indices": result.anomaly_indices,
     }
+
+
+class TimeSeriesForecastRequest(BaseModel):
+    values: list[float] = Field(min_length=3, max_length=100000)
+    method: str = "linear_trend"
+    horizon: int = Field(default=1, ge=1, le=10000)
+    alpha: float = Field(default=0.3, gt=0, le=1)
+
+
+@router.post("/time-series/forecast")
+async def forecast_series(request: TimeSeriesForecastRequest):
+    try:
+        result = forecast_time_series(
+            request.values,
+            method=request.method,
+            horizon=request.horizon,
+            alpha=request.alpha,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return result.__dict__
