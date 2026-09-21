@@ -14,6 +14,8 @@ router = APIRouter(prefix="/v1/ml/predictions", tags=["machine-learning-predicti
 class PredictionRequest(BaseModel):
     value: float
     context: dict = Field(default_factory=dict)
+    confidence_level: float = Field(default=0.95)
+    low_confidence_threshold: float = Field(default=0.70, ge=0.5, lt=1)
 
 
 def _response(result):
@@ -26,6 +28,17 @@ def _response(result):
         "output": explanation.output,
         "classification": explanation.classification,
         "threshold": explanation.threshold,
+        "confidence": {
+            "score": result.uncertainty.confidence_score,
+            "low_confidence": result.uncertainty.low_confidence,
+            "confidence_level": result.uncertainty.confidence_level,
+            "interval_lower": result.uncertainty.interval_lower,
+            "interval_upper": result.uncertainty.interval_upper,
+            "uncertainty_width": result.uncertainty.uncertainty_width,
+            "probability_margin": result.uncertainty.probability_margin,
+            "entropy": result.uncertainty.entropy,
+            "method": result.uncertainty.method,
+        },
         "explanation": explanation.explanation,
         "explanation_ref": result.explanation_ref,
         "explanation_sha256": result.explanation_sha256,
@@ -51,6 +64,8 @@ async def predict_active(
             input_value=body.value,
             actor_id=principal.subject,
             request_context=body.context,
+            confidence_level=body.confidence_level,
+            low_confidence_threshold=body.low_confidence_threshold,
         )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
