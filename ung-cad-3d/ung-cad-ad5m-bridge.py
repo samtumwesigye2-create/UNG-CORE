@@ -7,8 +7,8 @@ from flashforge import FlashForgeClient, FiveMClientConnectionOptions, PrinterDi
 HOST="127.0.0.1"; PORT=8765
 CLOUD=os.getenv("UNG_CAD_CLOUD","https://ung-cad-3d-production.up.railway.app").rstrip("/")
 PRINTER_ID=os.getenv("UNG_CAD_PRINTER_ID","a51a5435")
-CHECK_CODE=os.getenv("UNG_CAD_CHECK_CODE",PRINTER_ID).strip()
-BRIDGE_VERSION="2026-09-22-5"
+CHECK_CODE=os.getenv("UNG_CAD_CHECK_CODE","").strip()
+BRIDGE_VERSION="2026-09-22-6"
 STATE={"printer":None,"check_code":None}
 
 async def discover():
