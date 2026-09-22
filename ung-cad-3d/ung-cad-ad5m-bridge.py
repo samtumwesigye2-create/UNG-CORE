@@ -5,7 +5,7 @@ from urllib.parse import urlparse
 from flashforge import FlashForgeClient, FiveMClientConnectionOptions, PrinterDiscovery
 
 HOST="127.0.0.1"; PORT=8765
-BRIDGE_VERSION="2026-09-20-3"
+BRIDGE_VERSION="2026-09-21-4"
 STATE={"printer":None,"check_code":None}
 
 async def discover():
@@ -46,7 +46,12 @@ async def print_file(path, level=True):
         if not uploaded: raise RuntimeError("Printer rejected file upload")
         started=await c.job_control.print_local_file(Path(path).name,leveling_before_print=level)
         if not started: raise RuntimeError("File uploaded but printer rejected explicit start command")
-        return {"started":True,"file":Path(path).name,"mode":"upload_then_explicit_start"}
+        await asyncio.sleep(2)
+        verify=await c.get_printer_status()
+        state=str(getattr(verify,"machine_state","unknown"))
+        if "READY" in state.upper() or "IDLE" in state.upper():
+            raise RuntimeError("Printer accepted the command but remained idle; print did not start")
+        return {"started":True,"file":Path(path).name,"mode":"upload_then_explicit_start","printer_state":state}
 
 class H(BaseHTTPRequestHandler):
     def cors(self,code=200,ctype="application/json"):
