@@ -16,7 +16,7 @@ def get_connection():
 def init_db():
     c=get_connection()
     c.execute("CREATE TABLE IF NOT EXISTS scenes (id INTEGER PRIMARY KEY AUTOINCREMENT,name TEXT NOT NULL,data_json TEXT NOT NULL,created_at TEXT NOT NULL,updated_at TEXT NOT NULL)")
-    c.execute("CREATE TABLE IF NOT EXISTS print_jobs (id TEXT PRIMARY KEY, printer_id TEXT NOT NULL, machine_file TEXT NOT NULL, status TEXT NOT NULL, created_at TEXT NOT NULL, claimed_at TEXT, completed_at TEXT, result_json TEXT)")
+    c.execute("CREATE TABLE IF NOT EXISTS print_jobs (id TEXT PRIMARY KEY, printer_id TEXT NOT NULL, machine_file TEXT NOT NULL, status TEXT NOT NULL, created_at TEXT NOT NULL, claimed_at TEXT, completed_at TEXT, result_json TEXT)")\n    c.execute("CREATE TABLE IF NOT EXISTS bridge_status (printer_id TEXT PRIMARY KEY, last_seen TEXT NOT NULL, version TEXT, printer_json TEXT, error TEXT)")
     c.commit(); c.close()
 @app.on_event("startup")
 def startup(): init_db()
@@ -172,6 +172,25 @@ def get_print_job(job_id:str):
     if not row: raise HTTPException(404,"Print job not found")
     r=dict(row); r["result"]=json.loads(r.pop("result_json")) if r.get("result_json") else None
     return r
+
+class BridgeHeartbeat(BaseModel):
+    printer_id:str
+    version:str|None=None
+    printer:dict|None=None
+    error:str|None=None
+
+@app.post("/api/bridge/heartbeat")
+def bridge_heartbeat(body:BridgeHeartbeat):
+    c=get_connection(); c.execute("INSERT INTO bridge_status (printer_id,last_seen,version,printer_json,error) VALUES (?,?,?,?,?) ON CONFLICT(printer_id) DO UPDATE SET last_seen=excluded.last_seen,version=excluded.version,printer_json=excluded.printer_json,error=excluded.error",(body.printer_id,now_iso(),body.version,json.dumps(body.printer) if body.printer else None,body.error)); c.commit(); c.close()
+    return {"ok":True}
+
+@app.get("/api/manufacturing/bridge-status")
+def manufacturing_bridge_status(printer_id:str="a51a5435"):
+    aliases={"SNMTUF9100669","a51a5435"}; ids=aliases if printer_id in aliases else {printer_id}; marks=",".join("?" for _ in ids)
+    c=get_connection(); row=c.execute(f"SELECT * FROM bridge_status WHERE printer_id IN ({marks}) ORDER BY last_seen DESC LIMIT 1",[*ids]).fetchone(); c.close()
+    if not row:return {"online":False,"printer_id":printer_id,"reason":"bridge has never checked in"}
+    r=dict(row); last=datetime.fromisoformat(r["last_seen"]); age=(datetime.now(timezone.utc)-last).total_seconds()
+    return {"online":age<20,"age_seconds":round(age,1),"last_seen":r["last_seen"],"version":r["version"],"printer":json.loads(r["printer_json"]) if r["printer_json"] else None,"error":r["error"]}
 
 @app.get("/api/bridge/jobs/next")
 def bridge_next(printer_id:str):
