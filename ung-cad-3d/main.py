@@ -34,7 +34,11 @@ def studio_short(): return FileResponse(BASE_DIR/"studio.html")
 @app.get("/viewer.html")
 def viewer(): return FileResponse(BASE_DIR/"viewer.html")
 @app.get("/manufacturing.html")
-def manufacturing(): return FileResponse(BASE_DIR/"manufacturing.html")
+def manufacturing():
+    return FileResponse(
+        BASE_DIR/"manufacturing.html",
+        headers={"Cache-Control":"no-store, no-cache, must-revalidate, max-age=0","Pragma":"no-cache","Expires":"0"}
+    )
 @app.get("/drafting.html")
 def drafting(): return FileResponse(BASE_DIR/"drafting.html")
 @app.get("/ung-cad-ad5m-bridge.py")
