@@ -6,8 +6,6 @@ from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from slicer import slice_stl
-from orca_slicer import slice_stl_orca
-
 BASE_DIR=Path(__file__).resolve().parent
 DB_PATH=Path(os.getenv("UNG_CAD_3D_DB",str(BASE_DIR/"ung_cad_3d.db")))
 app=FastAPI(title="UNG-CAD-3D",version="1.2.0")
@@ -105,7 +103,7 @@ async def slice_part(file:UploadFile=File(...), selected:str=Form(...), layer_he
     if not low.endswith(".stl"):
         raise HTTPException(400,"This build slices STL; upload pre-sliced G-code/GX directly for transmission")
     try:
-        gcode,stats=slice_stl_orca(data,Path(source_name).name,layer_height=layer_height)
+        gcode,stats=slice_stl(data,Path(source_name).name,layer_height=layer_height)
     except Exception as e:
         raise HTTPException(422,f"Slicing failed: {e}")
     out=BASE_DIR/"generated"; out.mkdir(exist_ok=True)
