@@ -54,7 +54,7 @@ def slice_stl_orca(data: bytes, filename: str, layer_height=0.20):
         td=Path(td); src=td/(re.sub(r"[^A-Za-z0-9_.-]+","_",Path(filename).stem)+".stl")
         out=td/"out"; out.mkdir(); src.write_bytes(data)
         cmd=[str(app),str(src),"--load-settings",f"{fixed_machine};{process}","--load-filaments",str(filament),
-             "--arrange","1","--slice","0","--outputdir",str(out)]
+             "--arrange","1","--slice","0","--debug","2","--outputdir",str(out)]
         env=os.environ.copy(); env.setdefault("QT_QPA_PLATFORM","offscreen")
         p=subprocess.run(cmd,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,env=env,timeout=300)
         if p.returncode != 0:
