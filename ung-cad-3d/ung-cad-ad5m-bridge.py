@@ -8,7 +8,7 @@ HOST="127.0.0.1"; PORT=8765
 CLOUD=os.getenv("UNG_CAD_CLOUD","https://ung-cad-3d-production.up.railway.app").rstrip("/")
 PRINTER_ID=os.getenv("UNG_CAD_PRINTER_ID","a51a5435")
 CHECK_CODE=os.getenv("UNG_CAD_CHECK_CODE","").strip()
-BRIDGE_VERSION="2026-09-22-6"
+BRIDGE_VERSION="2026-09-22-7"
 STATE={"printer":None,"check_code":None}
 
 async def discover():
@@ -77,8 +77,15 @@ def ensure_paired():
         return False
 
 def cloud_worker():
+    last_error=None
     while True:
         try:
+            try:
+                cloud_json("/api/bridge/heartbeat","POST",{"printer_id":PRINTER_ID,"version":BRIDGE_VERSION,"printer":STATE["printer"],"error":last_error})
+                last_error=None
+            except Exception as hb:
+                print("Heartbeat:",hb)
+
             if not ensure_paired():
                 time.sleep(5); continue
             q=urllib.parse.urlencode({"printer_id":PRINTER_ID})
@@ -94,9 +101,7 @@ def cloud_worker():
                 finally:
                     try: os.unlink(path)
                     except: pass
-        except Exception as e:
-            print("Cloud queue:",e)
-        time.sleep(3)
+        except Exception as e:\n            last_error=str(e); print("Cloud queue:",e)\n        time.sleep(3)
 
 class H(BaseHTTPRequestHandler):
     def cors(self,code=200,ctype="application/json"):
