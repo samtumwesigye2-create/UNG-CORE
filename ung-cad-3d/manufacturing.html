@@ -7,14 +7,14 @@
 @media(max-width:820px){.preview-wrap{grid-template-columns:1fr}.controls{grid-template-columns:1fr}.part{grid-template-columns:1fr auto auto}}
 </style></head>
 <body><div class="top"><button onclick="location.href='/studio.html'">Home</button><button onclick="location.href='/viewer.html'">3D</button></div>
-<div class="wrap"><div class="box"><h1>UNG-CAD Manufacturing</h1><div class="small">Build 2026-09-22.9</div>
+<div class="wrap"><div class="box"><h1>UNG-CAD Manufacturing</h1><div class="small">Build 2026-09-22.10</div>
 
-<h2><span class="step">1</span>Upload package</h2>
-<button class="btn" id="choose-files" type="button">Choose printable files</button><input id="pkg" type="file" multiple accept=".stl,.3mf,.gcode,.gx,.zip,application/vnd.ms-package.3dmanufacturing-3dmodel+xml,application/zip" style="display:none">
+<h2><span class="step">1</span>Choose model</h2>
+<button class="btn" id="choose-files" type="button">Choose model or project</button><input id="pkg" type="file" multiple accept=".stl,.3mf,.gcode,.gx,.zip,application/vnd.ms-package.3dmanufacturing-3dmodel+xml,application/zip" style="display:none">
 <div id="meta" class="meta">Choose the actual printable files you want to use. Open folders normally in the picker, then select the files inside.</div>
-<div class="notice"><b>Real manufacturing engine</b><span id="engine">Server-side STL slicing is available. No simulated print actions.</span></div>
+<div class="notice"><b>Automatic manufacturing</b><span id="engine"> Choose a model. UNG-CAD repairs, prepares, slices, validates and sends it to the printer automatically.</span></div>
 
-<h2><span class="step">2</span>Choose &amp; verify a part in 3D</h2>
+<h2><span class="step">2</span>Check model</h2>
 <div id="parts"><div class="small">Upload a package above to list its printable parts.</div></div>
 <div class="preview-wrap">
   <div id="preview3d"><div id="previewPlaceholder">Select a part above to preview its geometry here.</div></div>
@@ -26,18 +26,18 @@
   </div>
 </div>
 
-<h2><span class="step">3</span>Slice for the printer</h2>
+<h2><span class="step">3</span>Auto Prepare</h2>
 <div class="controls">
 <div class="field"><label>Printable part</label><select id="part" disabled><option>Select package first</option></select></div>
-<div class="field"><label>Print mode</label><select id="quality"><option value="balanced" selected>Balanced</option><option value="quality">Quality</option><option value="fast">Fast</option></select></div>
+<div class="field"><label>Goal</label><select id="quality"><option value="balanced" selected>Everyday — recommended</option><option value="quality">Best detail</option><option value="fast">Fastest</option></select></div>
 <div class="field"><label>Material</label><select id="material"><option value="PLA" selected>PLA</option><option value="PETG">PETG</option></select></div>
 <div class="field"><label>Supports</label><select id="supports"><option value="auto" selected>Auto</option><option value="off">Off</option></select></div>
 <div class="field"><label>Copies</label><input id="copies" value="1" type="number" min="1" max="20"></div>
-<details class="field"><summary>Advanced</summary><label>Layer height (mm)</label><input id="layer" value="0.20" type="number" min="0.08" max="0.40" step="0.02"></details>
-<button class="btn" id="slice" disabled>Prepare for AD5M</button>
+<details class="field"><summary>Advanced controls</summary><label>Layer height (mm)</label><input id="layer" value="0.20" type="number" min="0.08" max="0.40" step="0.02"><div class="small">UNG-CAD automatically handles walls, infill, top/bottom layers, brim, extrusion, travel, cooling and validation. Open this only when you want manual control.</div></details>
+<button class="btn" id="slice" disabled>Auto Prepare</button>
 </div>
 
-<h2><span class="step">4</span>Send to printer</h2>
+<h2><span class="step">4</span>Print</h2>
 <div class="machine"><b>AD5M printer bridge</b><div class="small">Send the prepared job to your Adventurer 5M. UNG-CAD queues it securely on Railway; the local AD5M bridge picks it up and starts the printer.</div>
 <div class="controls">
 <div class="field"><label>Printer routing ID</label><input id="printer" value="a51a5435"></div>
@@ -46,7 +46,7 @@
 </div>
 <div class="controls">
 <div class="small">The Printer ID routes the Railway job. The Access / Check Code authenticates the local bridge to the physical printer. They are separate values.</div>
-<div></div><button class="btn" id="send" disabled>Start print on AD5M</button>
+<div></div><button class="btn" id="send" disabled>Print</button>
 </div><div id="status" class="status"></div></div>
 
 </div></div>
