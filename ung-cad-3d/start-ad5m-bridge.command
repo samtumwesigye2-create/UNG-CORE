@@ -3,7 +3,6 @@ set -u
 cd "$(dirname "$0")"
 clear
 export UNG_CAD_PRINTER_ID="a51a5435"
-export UNG_CAD_CHECK_CODE="a51a5435"
 echo "UNG-CAD AD5M Bridge"
 echo "==================="
 if command -v python3 >/dev/null 2>&1; then PY=python3
