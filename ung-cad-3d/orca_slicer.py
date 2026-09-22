@@ -44,17 +44,17 @@ def slice_stl_orca(data: bytes, filename: str, layer_height=0.20):
     app=_ensure_orca()
     machine=_profile("machine","Flashforge Adventurer 5M 0.4 Nozzle.json")
     process=_profile("process","0.20mm Standard @Flashforge AD5M 0.4 Nozzle.json")
-    fixed_process=CACHE/"ungcad-ad5m-process.json"
+    fixed_machine=CACHE/"ungcad-ad5m-machine.json"
     import json
-    cfg=json.loads(process.read_text())
-    cfg["relative_e_distances"]="0"
-    cfg["layer_gcode"]="G92 E0"
-    fixed_process.write_text(json.dumps(cfg))
+    mcfg=json.loads(machine.read_text())
+    mcfg["use_relative_e_distances"]="0"
+    mcfg["layer_change_gcode"]="G92 E0"
+    fixed_machine.write_text(json.dumps(mcfg))
     filament=_profile("filament","Flashforge PLA Basic.json")
     with tempfile.TemporaryDirectory(prefix="ungcad_orca_job_") as td:
         td=Path(td); src=td/(re.sub(r"[^A-Za-z0-9_.-]+","_",Path(filename).stem)+".stl")
         out=td/"out"; out.mkdir(); src.write_bytes(data)
-        cmd=[str(app),str(src),"--load-settings",f"{machine};{fixed_process}","--load-filaments",str(filament),
+        cmd=[str(app),str(src),"--load-settings",f"{fixed_machine};{process}","--load-filaments",str(filament),
              "--arrange","1","--slice","0","--outputdir",str(out)]
         env=os.environ.copy(); env.setdefault("QT_QPA_PLATFORM","offscreen")
         p=subprocess.run(cmd,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,env=env,timeout=300)
