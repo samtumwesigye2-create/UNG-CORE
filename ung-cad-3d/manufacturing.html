@@ -7,7 +7,7 @@
 @media(max-width:820px){.preview-wrap{grid-template-columns:1fr}.controls{grid-template-columns:1fr}.part{grid-template-columns:1fr auto auto}}
 </style></head>
 <body><div class="top"><button onclick="location.href='/studio.html'">Home</button><button onclick="location.href='/viewer.html'">3D</button></div>
-<div class="wrap"><div class="box"><h1>UNG-CAD Manufacturing</h1><div class="small">Build 2026-09-22.11</div>
+<div class="wrap"><div class="box"><h1>UNG-CAD Manufacturing</h1><div class="small">Build 2026-09-22.12</div>
 
 <h2><span class="step">1</span>Choose model</h2>
 <button class="btn" id="choose-files" type="button">Choose model or project</button><input id="pkg" type="file" multiple accept=".stl,.3mf,.gcode,.gx,.zip,application/vnd.ms-package.3dmanufacturing-3dmodel+xml,application/zip" style="display:none">
@@ -41,7 +41,7 @@
 <div class="machine"><b>AD5M printer bridge</b><div class="small">Send the prepared job to your Adventurer 5M. UNG-CAD queues it securely on Railway; the local AD5M bridge picks it up and starts the printer.</div>
 <div class="controls">
 <div class="field"><label>Printer</label><input id="printer" value="a51a5435" readonly></div>
-<div class="small">Your AD5M bridge connects to Railway automatically. No phone-to-localhost connection is required.</div>
+<div class="small">Your AD5M bridge connects to Railway automatically. <b id="bridgeState">Checking printer agent…</b></div>
 <button class="btn" id="send" disabled>Print</button>
 </div><div id="status" class="status"></div></div>
 
@@ -113,6 +113,14 @@ async function loadToolpath(machine){
 
 sliceBtn.onclick=async()=>{if(!selectedFile||!part.value)return;sliceBtn.disabled=true;sendBtn.disabled=true;status.textContent='Preparing printable machine file…';const d=new FormData();d.append('file',selectedFile);d.append('selected',part.value);d.append('layer_height',document.getElementById('layer').value);d.append('quality',document.getElementById('quality').value);d.append('material',document.getElementById('material').value);d.append('supports',document.getElementById('supports').value);d.append('copies',document.getElementById('copies').value);
 try{const r=await fetch('/api/manufacturing/slice',{method:'POST',body:d}),j=await r.json();if(!r.ok)throw Error(j.detail||'Slicing failed');lastMachineUrl=j.download;sendBtn.disabled=false;if(!j.stats.pre_sliced)loadToolpath(j.machine_file);status.textContent=j.stats.pre_sliced?('MACHINE FILE READY — '+j.machine_file+'\n'):('AUTO PREPARE COMPLETE — '+j.stats.layers+' layers · '+j.stats.infill_percent+'% infill · '+j.stats.wall_count+' walls · supports '+j.stats.support_layers+' layers · '+j.stats.material_g+' g · ~'+j.stats.estimated_minutes+' min.\nValidation: '+j.stats.validation+' · Machine file: '+j.machine_file+'\n');const a=document.createElement('a');a.className='link';a.href=j.download;a.download=j.machine_file;a.textContent='Download AD5M G-code';status.appendChild(a)}catch(e){status.textContent='SLICE FAILED — '+e.message}finally{sliceBtn.disabled=false}};
+
+async function refreshBridge(){
+ try{const id=document.getElementById('printer').value.trim();const r=await fetch('/api/manufacturing/bridge-status?printer_id='+encodeURIComponent(id),{cache:'no-store'}),j=await r.json();const el=document.getElementById('bridgeState');
+ if(j.online){el.textContent='● Printer agent online';sendBtn.title='';}
+ else{el.textContent='○ Printer agent offline — Print will stay queued until it reconnects';sendBtn.title='Printer agent offline';}
+ }catch(e){}
+}
+setInterval(refreshBridge,5000);refreshBridge();
 
 async function pollJob(id){for(let i=0;i<180;i++){await new Promise(r=>setTimeout(r,2000));const r=await fetch('/api/manufacturing/jobs/'+id,{cache:'no-store'}),j=await r.json();if(j.status==='completed'){status.textContent='PRINT STARTED — AD5M bridge accepted '+j.machine_file;return}if(j.status==='failed'){status.textContent='PRINT FAILED — '+((j.result&&j.result.error)||'printer bridge failed');return}status.textContent='PRINT QUEUED — waiting for the AD5M bridge ('+j.status+')';}status.textContent='PRINT QUEUED — bridge has not picked it up yet.'}
 sendBtn.onclick=async()=>{if(!lastMachineUrl){status.textContent='NO SLICED FILE — slice the selected part first.';return}sendBtn.disabled=true;try{const machine=decodeURIComponent(lastMachineUrl.split('/').pop());const r=await fetch('/api/manufacturing/jobs',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({printer_id:document.getElementById('printer').value.trim(),machine_file:machine})});const j=await r.json();if(!r.ok)throw Error(j.detail||'Could not queue print');status.textContent='PRINT QUEUED FOR AD5M — '+j.job_id;await pollJob(j.job_id)}catch(e){status.textContent='PRINT FAILED — '+e.message}finally{sendBtn.disabled=!lastMachineUrl}};
