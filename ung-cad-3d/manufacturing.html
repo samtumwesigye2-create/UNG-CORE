@@ -41,7 +41,7 @@
 <div class="machine"><b>AD5M printer bridge</b><div class="small">Send the prepared job to your Adventurer 5M. UNG-CAD queues it securely on Railway; the local AD5M bridge picks it up and starts the printer.</div>
 <div class="controls">
 <div class="field"><label>Printer</label><input id="printer" value="a51a5435" readonly></div>
-<div class="small">Your AD5M bridge connects to Railway automatically. <b id="bridgeState">Checking printer agent…</b></div>
+<div class="small">Your AD5M bridge connects to Railway automatically. <b id="bridgeState">Checking printer agent…</b><div id="agentInstall" style="display:none;margin-top:10px"><a class="btn" href="/install-ad5m-agent.command">Install printer agent on Mac</a></div></div>
 <button class="btn" id="send" disabled>Print</button>
 </div><div id="status" class="status"></div></div>
 
@@ -116,8 +116,9 @@ try{const r=await fetch('/api/manufacturing/slice',{method:'POST',body:d}),j=awa
 
 async function refreshBridge(){
  try{const id=document.getElementById('printer').value.trim();const r=await fetch('/api/manufacturing/bridge-status?printer_id='+encodeURIComponent(id),{cache:'no-store'}),j=await r.json();const el=document.getElementById('bridgeState');
- if(j.online){el.textContent='● Printer agent online';sendBtn.title='';}
- else{el.textContent='○ Printer agent offline — Print will stay queued until it reconnects';sendBtn.title='Printer agent offline';}
+ const install=document.getElementById('agentInstall');
+ if(j.online){el.textContent='● Printer agent online';sendBtn.title='';install.style.display='none';}
+ else{el.textContent='○ Printer agent offline — printer agent must be installed/running on the computer beside the AD5M';sendBtn.title='Printer agent offline';install.style.display='block';}
  }catch(e){}
 }
 setInterval(refreshBridge,5000);refreshBridge();
