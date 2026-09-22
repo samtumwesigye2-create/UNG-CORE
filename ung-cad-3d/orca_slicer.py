@@ -48,7 +48,6 @@ def slice_stl_orca(data: bytes, filename: str, layer_height=0.20):
     import json
     mcfg=json.loads(machine.read_text())
     mcfg["use_relative_e_distances"]="0"
-    mcfg["layer_change_gcode"]="G92 E0"
     fixed_machine.write_text(json.dumps(mcfg))
     filament=_profile("filament","Flashforge PLA Basic.json")
     with tempfile.TemporaryDirectory(prefix="ungcad_orca_job_") as td:
