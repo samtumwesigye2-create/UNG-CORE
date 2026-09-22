@@ -1,10 +1,12 @@
-import asyncio, json, os, tempfile
+import asyncio, json, os, tempfile, time, urllib.request, urllib.parse
 from pathlib import Path
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse
 from flashforge import FlashForgeClient, FiveMClientConnectionOptions, PrinterDiscovery
 
 HOST="127.0.0.1"; PORT=8765
+CLOUD=os.getenv("UNG_CAD_CLOUD","https://ung-cad-3d-production.up.railway.app").rstrip("/")
+PRINTER_ID=os.getenv("UNG_CAD_PRINTER_ID","SNMTUF9100669")
 BRIDGE_VERSION="2026-09-21-4"
 STATE={"printer":None,"check_code":None}
 
@@ -53,6 +55,32 @@ async def print_file(path, level=True):
             raise RuntimeError("Printer accepted the command but remained idle; print did not start")
         return {"started":True,"file":Path(path).name,"mode":"upload_then_explicit_start","printer_state":state}
 
+
+def cloud_json(path, method="GET", body=None):
+    data=None if body is None else json.dumps(body).encode()
+    req=urllib.request.Request(CLOUD+path,data=data,method=method,headers={"Content-Type":"application/json"})
+    with urllib.request.urlopen(req,timeout=30) as r: return json.loads(r.read() or b"{}")
+
+def cloud_worker():
+    while True:
+        try:
+            q=urllib.parse.urlencode({"printer_id":PRINTER_ID})
+            j=cloud_json("/api/bridge/jobs/next?"+q).get("job")
+            if j:
+                fd,path=tempfile.mkstemp(prefix="ungcad_cloud_",suffix=Path(j["machine_file"]).suffix); os.close(fd)
+                try:
+                    urllib.request.urlretrieve(CLOUD+j["download"],path)
+                    result=asyncio.run(print_file(path,True))
+                    cloud_json("/api/bridge/jobs/"+j["id"]+"/complete","POST",{"ok":True,"result":result})
+                except Exception as e:
+                    cloud_json("/api/bridge/jobs/"+j["id"]+"/complete","POST",{"ok":False,"error":str(e)})
+                finally:
+                    try: os.unlink(path)
+                    except: pass
+        except Exception as e:
+            print("Cloud queue:",e)
+        time.sleep(3)
+
 class H(BaseHTTPRequestHandler):
     def cors(self,code=200,ctype="application/json"):
         self.send_response(code); self.send_header("Content-Type",ctype); self.send_header("Access-Control-Allow-Origin","*"); self.send_header("Access-Control-Allow-Headers","Content-Type,X-Printer-ID,X-Filename,X-Level"); self.send_header("Access-Control-Allow-Methods","GET,POST,OPTIONS"); self.end_headers()
@@ -88,5 +116,7 @@ class H(BaseHTTPRequestHandler):
     def log_message(self,*args): pass
 
 if __name__=="__main__":
-    print(f"UNG-CAD AD5M bridge ready on http://{HOST}:{PORT}")
+    import threading
+    print(f"UNG-CAD AD5M bridge ready on http://{HOST}:{PORT}; cloud queue {CLOUD}")
+    threading.Thread(target=cloud_worker,daemon=True).start()
     ThreadingHTTPServer((HOST,PORT),H).serve_forever()
