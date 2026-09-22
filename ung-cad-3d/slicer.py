@@ -86,7 +86,7 @@ def slice_stl(data: bytes, filename: str, layer_height=0.20, nozzle=0.40, wall_c
             for ring in poly.interiors:
                 e=_emit_loop(lines,_loop_points(np.asarray(ring.coords),z),xoff,yoff,z,e)
     lines += [
-        "G1 E-1.0000 F1800","G1 Z5.000 F600","G1 X0 Y220 F6000",
+        "G1 E-1.0000 F1800","G1 Z5.000 F600","G1 X0 Y110 F6000",
         "M104 S0","M140 S0","M107","M84",";END"
     ]
     if layer_count==0:
