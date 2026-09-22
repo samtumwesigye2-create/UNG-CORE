@@ -65,6 +65,9 @@ def slice_stl_orca(data: bytes, filename: str, layer_height=0.20):
         if not files:
             raise RuntimeError("OrcaSlicer completed without producing G-code")
         payload=files[0].read_bytes()
-        stats=_validate_gcode(payload)
+        try:
+            stats=_validate_gcode(payload)
+        except RuntimeError as e:
+            raise RuntimeError(f"{e}\\nOrcaSlicer console output:\\n{p.stdout[-2000:]}")
         stats.update({"engine":"OrcaSlicer","engine_version":ORCA_VERSION,"printer_profile":"Flashforge Adventurer 5M 0.4 Nozzle","process_profile":"0.20mm Standard","filament_profile":"Flashforge PLA Basic","bytes":len(payload)})
         return payload,stats
