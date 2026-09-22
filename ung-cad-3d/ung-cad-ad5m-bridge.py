@@ -7,8 +7,8 @@ from flashforge import FlashForgeClient, FiveMClientConnectionOptions, PrinterDi
 HOST="127.0.0.1"; PORT=8765
 CLOUD=os.getenv("UNG_CAD_CLOUD","https://ung-cad-3d-production.up.railway.app").rstrip("/")
 PRINTER_ID=os.getenv("UNG_CAD_PRINTER_ID","a51a5435")
-CHECK_CODE=os.getenv("UNG_CAD_CHECK_CODE","").strip()
-BRIDGE_VERSION="2026-09-21-4"
+CHECK_CODE=os.getenv("UNG_CAD_CHECK_CODE",PRINTER_ID).strip()
+BRIDGE_VERSION="2026-09-22-5"
 STATE={"printer":None,"check_code":None}
 
 async def discover():
@@ -27,7 +27,7 @@ async def connect(check_code):
         except Exception as e:
             msg=str(e)
             if "Access code is different" in msg or "access code is different" in msg:
-                raise RuntimeError("Access Code mismatch — enter the CURRENT Access Code / Check Code shown in the printer Network settings")
+                raise RuntimeError(f"Access Code mismatch — current configured code is {check_code!r}; update UNG_CAD_CHECK_CODE to the code shown in the printer Network settings")
             raise
         if not info: raise RuntimeError("Printer rejected connection / Access Code")
         STATE["printer"]={"name":c.printer_name or p.name,"ip":p.ip_address,"serial":p.serial_number,"firmware":c.firmware_version,"http_port":p.event_port,"tcp_port":p.command_port}
