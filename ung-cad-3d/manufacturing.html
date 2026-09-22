@@ -7,10 +7,10 @@
 @media(max-width:820px){.preview-wrap{grid-template-columns:1fr}.controls{grid-template-columns:1fr}.part{grid-template-columns:1fr auto auto}}
 </style></head>
 <body><div class="top"><button onclick="location.href='/studio.html'">Home</button><button onclick="location.href='/viewer.html'">3D</button></div>
-<div class="wrap"><div class="box"><h1>UNG-CAD Manufacturing</h1><div class="small">Build 2026-09-22.13</div>
+<div class="wrap"><div class="box"><h1>UNG-CAD Manufacturing</h1><div class="small">Build 2026-09-22.14</div>
 
 <h2><span class="step">1</span>Choose model</h2>
-<button class="btn" id="choose-files" type="button">Choose model or project</button><input id="pkg" type="file" multiple accept=".stl,.3mf,.gcode,.gx,.zip,application/vnd.ms-package.3dmanufacturing-3dmodel+xml,application/zip" style="display:none">
+<label class="btn" for="pkg" style="display:inline-block">Choose model or project</label><input id="pkg" type="file" multiple accept=".stl,.3mf,.gcode,.gx,.zip" style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none">
 <div id="meta" class="meta">Choose the actual printable files you want to use. Open folders normally in the picker, then select the files inside.</div>
 <div class="notice"><b>Automatic manufacturing</b><span id="engine"> Choose a model. UNG-CAD repairs, prepares, slices, validates and sends it to the printer automatically.</span></div>
 
@@ -50,7 +50,7 @@
 <script src="/static/csg-engine.js"></script>
 <script>
 const f=document.getElementById('pkg'),meta=document.getElementById('meta'),parts=document.getElementById('parts'),status=document.getElementById('status'),part=document.getElementById('part'),sliceBtn=document.getElementById('slice'),sendBtn=document.getElementById('send'),previewStats=document.getElementById('previewStats');
-document.getElementById('choose-files').onclick=()=>f.click();
+
 let selectedFile=null,lastMachineUrl=null;
 const qsPrinterId=new URLSearchParams(location.search).get('printer_id');
 if(qsPrinterId) document.getElementById('printer').value=qsPrinterId;
@@ -94,7 +94,7 @@ j.parts.forEach((n,i)=>{const o=document.createElement('option');o.value=n;o.tex
 part.disabled=false;sliceBtn.disabled=false;status.textContent='Package inspection complete.';
 if(j.parts.length)selectAndPreview(j.parts[0],firstRow);
 }catch(e){status.textContent='FAILED — '+e.message}}
-f.onchange=async()=>{if(f.files&&f.files.length){await handleChosenFiles(f.files,'files');f.value='';}};
+f.addEventListener('change',async()=>{if(f.files&&f.files.length){await handleChosenFiles(Array.from(f.files),'files');}});
 part.onchange=()=>{sliceBtn.disabled=!selectedFile||!part.value;if(part.value)selectAndPreview(part.value,null)};
 function drawToolpath(data,index){
  const panel=document.getElementById('toolpathPanel'),cv=document.getElementById('toolpathCanvas'),ctx=cv.getContext('2d'),layer=data.layers[index];
