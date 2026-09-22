@@ -42,6 +42,8 @@
 const f=document.getElementById('pkg'),meta=document.getElementById('meta'),parts=document.getElementById('parts'),status=document.getElementById('status'),part=document.getElementById('part'),sliceBtn=document.getElementById('slice'),sendBtn=document.getElementById('send'),previewStats=document.getElementById('previewStats');
 document.getElementById('choose-files').onclick=()=>{f.value='';f.click()};
 let selectedFile=null,lastMachineUrl=null,paired=false,bridgeTimer=null;
+const qsPrinterId=new URLSearchParams(location.search).get('printer_id');
+if(qsPrinterId) document.getElementById('printer').value=qsPrinterId;
 
 async function extractPartBytes(file,partName){
   if(!file.name.toLowerCase().endsWith('.zip'))return await file.arrayBuffer();
