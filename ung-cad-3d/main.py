@@ -16,7 +16,8 @@ def get_connection():
 def init_db():
     c=get_connection()
     c.execute("CREATE TABLE IF NOT EXISTS scenes (id INTEGER PRIMARY KEY AUTOINCREMENT,name TEXT NOT NULL,data_json TEXT NOT NULL,created_at TEXT NOT NULL,updated_at TEXT NOT NULL)")
-    c.execute("CREATE TABLE IF NOT EXISTS print_jobs (id TEXT PRIMARY KEY, printer_id TEXT NOT NULL, machine_file TEXT NOT NULL, status TEXT NOT NULL, created_at TEXT NOT NULL, claimed_at TEXT, completed_at TEXT, result_json TEXT)")\n    c.execute("CREATE TABLE IF NOT EXISTS bridge_status (printer_id TEXT PRIMARY KEY, last_seen TEXT NOT NULL, version TEXT, printer_json TEXT, error TEXT)")
+    c.execute("CREATE TABLE IF NOT EXISTS print_jobs (id TEXT PRIMARY KEY, printer_id TEXT NOT NULL, machine_file TEXT NOT NULL, status TEXT NOT NULL, created_at TEXT NOT NULL, claimed_at TEXT, completed_at TEXT, result_json TEXT")
+    c.execute("CREATE TABLE IF NOT EXISTS bridge_status (printer_id TEXT PRIMARY KEY, last_seen TEXT NOT NULL, version TEXT, printer_json TEXT, error TEXT)")
     c.commit(); c.close()
 @app.on_event("startup")
 def startup(): init_db()
