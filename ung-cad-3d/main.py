@@ -144,7 +144,15 @@ def get_print_job(job_id:str):
 
 @app.get("/api/bridge/jobs/next")
 def bridge_next(printer_id:str):
-    c=get_connection(); row=c.execute("SELECT * FROM print_jobs WHERE printer_id=? AND status='queued' ORDER BY created_at LIMIT 1",(printer_id,)).fetchone()
+    # The printer's Network Mode ID changed from the hardware serial routing key
+    # used by the already-running bridge. Treat both IDs as aliases so the
+    # installed bridge can claim jobs immediately without needing to be replaced.
+    aliases={"SNMTUF9100669","a51a5435"}
+    ids=aliases if printer_id in aliases else {printer_id}
+    marks=",".join("?" for _ in ids)
+    params=[*ids]
+    c=get_connection()
+    row=c.execute(f"SELECT * FROM print_jobs WHERE printer_id IN ({marks}) AND status='queued' ORDER BY created_at LIMIT 1",params).fetchone()
     if not row: c.close(); return {"job":None}
     c.execute("UPDATE print_jobs SET status='claimed',claimed_at=? WHERE id=? AND status='queued'",(now_iso(),row["id"])); c.commit()
     row=c.execute("SELECT * FROM print_jobs WHERE id=?",(row["id"],)).fetchone(); c.close()
