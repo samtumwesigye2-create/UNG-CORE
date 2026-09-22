@@ -1,4 +1,4 @@
-import json, os, sqlite3, zipfile, io, re
+import json, os, sqlite3, zipfile, io, re, secrets
 from datetime import datetime, timezone
 from pathlib import Path
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form
@@ -18,6 +18,7 @@ def get_connection():
 def init_db():
     c=get_connection()
     c.execute("CREATE TABLE IF NOT EXISTS scenes (id INTEGER PRIMARY KEY AUTOINCREMENT,name TEXT NOT NULL,data_json TEXT NOT NULL,created_at TEXT NOT NULL,updated_at TEXT NOT NULL)")
+    c.execute("CREATE TABLE IF NOT EXISTS print_jobs (id TEXT PRIMARY KEY, printer_id TEXT NOT NULL, machine_file TEXT NOT NULL, status TEXT NOT NULL, created_at TEXT NOT NULL, claimed_at TEXT, completed_at TEXT, result_json TEXT)")
     c.commit(); c.close()
 @app.on_event("startup")
 def startup(): init_db()
@@ -122,6 +123,45 @@ def download_machine_file(name:str):
     target=BASE_DIR/"generated"/safe
     if not target.exists(): raise HTTPException(404,"Machine file not found")
     return FileResponse(target,media_type="application/octet-stream",filename=safe)
+
+class PrintJobIn(BaseModel):
+    printer_id:str
+    machine_file:str
+
+@app.post("/api/manufacturing/jobs")
+def create_print_job(job:PrintJobIn):
+    machine=Path(job.machine_file).name
+    target=BASE_DIR/"generated"/machine
+    if not target.exists(): raise HTTPException(404,"Machine file not found")
+    jid=secrets.token_urlsafe(12)
+    c=get_connection(); c.execute("INSERT INTO print_jobs (id,printer_id,machine_file,status,created_at) VALUES (?,?,?,?,?)",(jid,job.printer_id.strip(),machine,"queued",now_iso())); c.commit(); c.close()
+    return {"ok":True,"job_id":jid,"status":"queued","printer_id":job.printer_id.strip(),"machine_file":machine}
+
+@app.get("/api/manufacturing/jobs/{job_id}")
+def get_print_job(job_id:str):
+    c=get_connection(); row=c.execute("SELECT * FROM print_jobs WHERE id=?",(job_id,)).fetchone(); c.close()
+    if not row: raise HTTPException(404,"Print job not found")
+    r=dict(row); r["result"]=json.loads(r.pop("result_json")) if r.get("result_json") else None
+    return r
+
+@app.get("/api/bridge/jobs/next")
+def bridge_next(printer_id:str):
+    c=get_connection(); row=c.execute("SELECT * FROM print_jobs WHERE printer_id=? AND status='queued' ORDER BY created_at LIMIT 1",(printer_id,)).fetchone()
+    if not row: c.close(); return {"job":None}
+    c.execute("UPDATE print_jobs SET status='claimed',claimed_at=? WHERE id=? AND status='queued'",(now_iso(),row["id"])); c.commit()
+    row=c.execute("SELECT * FROM print_jobs WHERE id=?",(row["id"],)).fetchone(); c.close()
+    return {"job":{"id":row["id"],"machine_file":row["machine_file"],"download":f"/api/manufacturing/download/{row['machine_file']}"}}
+
+class BridgeResult(BaseModel):
+    ok:bool
+    result:dict|None=None
+    error:str|None=None
+
+@app.post("/api/bridge/jobs/{job_id}/complete")
+def bridge_complete(job_id:str, body:BridgeResult):
+    c=get_connection(); status="completed" if body.ok else "failed"; result=body.result or {"error":body.error}
+    c.execute("UPDATE print_jobs SET status=?,completed_at=?,result_json=? WHERE id=?",(status,now_iso(),json.dumps(result),job_id)); c.commit(); c.close()
+    return {"ok":True,"status":status}
 
 @app.get("/api/manufacturing/health")
 def manufacturing_health():
