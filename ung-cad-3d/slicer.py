@@ -31,8 +31,20 @@ def slice_stl(data: bytes, filename: str, layer_height=0.20, nozzle=0.40, wall_c
     mesh=trimesh.load_mesh(io.BytesIO(data), file_type='stl')
     if not isinstance(mesh,trimesh.Trimesh):
         raise ValueError("STL did not produce a mesh")
+    # Repair common STL defects automatically before refusing to slice.
+    repaired=False
     if not mesh.is_watertight:
-        raise ValueError("STL is not watertight")
+        repaired=True
+        mesh.remove_unreferenced_vertices()
+        mesh.merge_vertices()
+        trimesh.repair.fix_normals(mesh, multibody=True)
+        trimesh.repair.fix_winding(mesh)
+        trimesh.repair.fill_holes(mesh)
+        mesh.remove_unreferenced_vertices()
+        mesh.merge_vertices()
+    if not mesh.is_watertight:
+        boundary_count = len(mesh.edges_boundary) if hasattr(mesh, "edges_boundary") else "unknown"
+        raise ValueError(f"Automatic mesh repair could not close this STL (open boundary edges: {boundary_count})")
     ext=mesh.extents
     if max(ext[:2]) > bed-10:
         raise ValueError(f"Model XY footprint {max(ext[:2]):.1f} mm exceeds Adventurer 5M 220 mm bed")
@@ -81,4 +93,4 @@ def slice_stl(data: bytes, filename: str, layer_height=0.20, nozzle=0.40, wall_c
     payload=("\n".join(lines)+"\n").encode()
     return payload, {"layers":layer_count,"height_mm":round(float(zmax-zmin),2),
                      "size_xy_mm":[round(float(ext[0]),2),round(float(ext[1]),2)],
-                     "bytes":len(payload)}
+                     "bytes":len(payload),"mesh_repaired":repaired}
