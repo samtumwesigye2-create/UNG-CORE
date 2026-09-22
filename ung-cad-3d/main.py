@@ -91,8 +91,17 @@ async def read_selected(file:UploadFile, selected:str):
 async def slice_part(file:UploadFile=File(...), selected:str=Form(...), layer_height:float=Form(0.20)):
     if not (0.08 <= layer_height <= 0.4): raise HTTPException(400,"Layer height must be 0.08–0.40 mm")
     source_name, data=await read_selected(file,selected)
-    if not source_name.lower().endswith(".stl"):
-        raise HTTPException(400,"Only STL geometry can be sliced here")
+    low=source_name.lower()
+    if low.endswith((".gcode",".gx")):
+        out=BASE_DIR/"generated"; out.mkdir(exist_ok=True)
+        safe=re.sub(r"[^A-Za-z0-9_.-]+","_",Path(source_name).name)
+        target=out/safe; target.write_bytes(data)
+        return {"ok":True,"status":"machine_file_ready","source":Path(source_name).name,
+                "machine_file":target.name,"download":f"/api/manufacturing/download/{target.name}",
+                "printer":"FlashForge Adventurer 5M","stats":{"pre_sliced":True},
+                "transmission":"local AD5M bridge required"}
+    if not low.endswith(".stl"):
+        raise HTTPException(400,"This build slices STL; upload pre-sliced G-code/GX directly for transmission")
     try:
         gcode,stats=slice_stl(data,Path(source_name).name,layer_height=layer_height)
     except Exception as e:
