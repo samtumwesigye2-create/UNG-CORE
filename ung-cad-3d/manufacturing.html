@@ -31,9 +31,14 @@
 <h2><span class="step">4</span>Send to printer</h2>
 <div class="machine"><b>AD5M printer bridge</b><div class="small">Send the prepared job to your Adventurer 5M. UNG-CAD queues it securely on Railway; the local AD5M bridge picks it up and starts the printer.</div>
 <div class="controls">
-<div class="field"><label>Printer ID</label><input id="printer" value="SNMTUF9100669"></div>
-<button class="btn" id="pair" style="display:none">Pair printer</button><button class="btn" id="send" disabled>Start print on AD5M</button>
-</div><div class="small">The printer-side bridge can run on an always-on Mac or Raspberry Pi near the AD5M. Your browser does not connect directly to the printer; the local bridge handles the LAN connection.</div><div id="status" class="status"></div></div>
+<div class="field"><label>Printer routing ID</label><input id="printer" value="a51a5435"></div>
+<div class="field"><label>Access / Check Code</label><input id="accessCode" type="password" autocomplete="off" placeholder="Code shown by the printer"></div>
+<button class="btn" id="pair">Connect AD5M</button>
+</div>
+<div class="controls">
+<div class="small">The Printer ID routes the Railway job. The Access / Check Code authenticates the local bridge to the physical printer. They are separate values.</div>
+<div></div><button class="btn" id="send" disabled>Start print on AD5M</button>
+</div><div id="status" class="status"></div></div>
 
 </div></div>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
@@ -88,6 +93,25 @@ f.onchange=()=>handleChosenFiles(f.files,'files');
 part.onchange=()=>{sliceBtn.disabled=!selectedFile||!part.value;if(part.value)selectAndPreview(part.value,null)};
 sliceBtn.onclick=async()=>{if(!selectedFile||!part.value)return;sliceBtn.disabled=true;sendBtn.disabled=true;paired=false;status.textContent='Preparing printable machine file…';const d=new FormData();d.append('file',selectedFile);d.append('selected',part.value);d.append('layer_height',document.getElementById('layer').value);
 try{const r=await fetch('/api/manufacturing/slice',{method:'POST',body:d}),j=await r.json();if(!r.ok)throw Error(j.detail||'Slicing failed');lastMachineUrl=j.download;sendBtn.disabled=false;status.textContent=j.stats.pre_sliced?('MACHINE FILE READY — '+j.machine_file+'\n'):('SLICE COMPLETE — '+j.stats.layers+' layers, '+j.stats.height_mm+' mm height, '+j.stats.size_xy_mm.join(' × ')+' mm XY.\nMachine file: '+j.machine_file+'\n');const a=document.createElement('a');a.className='link';a.href=j.download;a.download=j.machine_file;a.textContent='Download AD5M G-code';status.appendChild(a)}catch(e){status.textContent='SLICE FAILED — '+e.message}finally{sliceBtn.disabled=false}};
+
+document.getElementById('pair').onclick=async()=>{
+  const code=document.getElementById('accessCode').value.trim();
+  if(!code){status.textContent='ENTER ACCESS / CHECK CODE — use the code currently shown in the printer network settings.';return}
+  const btn=document.getElementById('pair'); btn.disabled=true; status.textContent='CONNECTING TO AD5M BRIDGE…';
+  try{
+    const r=await fetch('http://127.0.0.1:8765/pair',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({printer_id:code})
+    });
+    const j=await r.json();
+    if(!r.ok||!j.paired) throw Error(j.error||'Could not pair with printer');
+    paired=true;
+    status.textContent='AD5M CONNECTED — '+(j.printer?.name||'printer')+' at '+(j.printer?.ip||'LAN');
+  }catch(e){
+    status.textContent='AD5M CONNECT FAILED — '+e.message+'\nMake sure the local bridge is running on this Mac.';
+  }finally{btn.disabled=false}
+};
 async function pollJob(id){for(let i=0;i<180;i++){await new Promise(r=>setTimeout(r,2000));const r=await fetch('/api/manufacturing/jobs/'+id,{cache:'no-store'}),j=await r.json();if(j.status==='completed'){status.textContent='PRINT STARTED — AD5M bridge accepted '+j.machine_file;return}if(j.status==='failed'){status.textContent='PRINT FAILED — '+((j.result&&j.result.error)||'printer bridge failed');return}status.textContent='PRINT QUEUED — waiting for the AD5M bridge ('+j.status+')';}status.textContent='PRINT QUEUED — bridge has not picked it up yet.'}
 sendBtn.onclick=async()=>{if(!lastMachineUrl){status.textContent='NO SLICED FILE — slice the selected part first.';return}sendBtn.disabled=true;try{const machine=decodeURIComponent(lastMachineUrl.split('/').pop());const r=await fetch('/api/manufacturing/jobs',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({printer_id:document.getElementById('printer').value.trim(),machine_file:machine})});const j=await r.json();if(!r.ok)throw Error(j.detail||'Could not queue print');status.textContent='PRINT QUEUED FOR AD5M — '+j.job_id;await pollJob(j.job_id)}catch(e){status.textContent='PRINT FAILED — '+e.message}finally{sendBtn.disabled=!lastMachineUrl}};
 </script>
