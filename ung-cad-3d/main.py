@@ -119,6 +119,33 @@ async def slice_part(file:UploadFile=File(...), selected:str=Form(...), layer_he
             "printer":"FlashForge Adventurer 5M","stats":stats,
             "transmission":"local AD5M bridge required"}
 
+@app.get("/api/manufacturing/toolpath/{name}")
+def toolpath_preview(name:str):
+    safe=Path(name).name
+    target=BASE_DIR/"generated"/safe
+    if not target.exists(): raise HTTPException(404,"Machine file not found")
+    if not safe.lower().endswith((".gcode",".gx")): raise HTTPException(400,"Toolpath preview requires G-code")
+    layers=[]; current={"z":0.0,"segments":[]}; x=y=e=0.0
+    try:
+        for raw in target.read_text(errors="ignore").splitlines():
+            line=raw.strip()
+            if line.startswith(";LAYER:"):
+                if current["segments"]: layers.append(current)
+                current={"z":current["z"],"segments":[]}
+                continue
+            if not line.startswith(("G0 ","G1 ")): continue
+            vals={k:float(v) for k,v in re.findall(r"([XYZE])(-?\d+(?:\.\d+)?)",line)}
+            nx,ny,nz=vals.get("X",x),vals.get("Y",y),vals.get("Z",current["z"])
+            if "Z" in vals: current["z"]=nz
+            extruding="E" in vals and vals["E"]>e and (nx!=x or ny!=y)
+            if nx!=x or ny!=y:
+                current["segments"].append([round(x,3),round(y,3),round(nx,3),round(ny,3),1 if extruding else 0])
+            x,y=nx,ny
+            if "E" in vals:e=vals["E"]
+        if current["segments"]:layers.append(current)
+    except Exception as ex: raise HTTPException(422,f"Could not parse toolpath: {ex}")
+    return {"ok":True,"file":safe,"layer_count":len(layers),"layers":layers}
+
 @app.get("/api/manufacturing/download/{name}")
 def download_machine_file(name:str):
     safe=Path(name).name
