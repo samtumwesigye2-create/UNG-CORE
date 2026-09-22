@@ -92,7 +92,7 @@ async def read_selected(file:UploadFile, selected:str):
     raise HTTPException(404,"Selected part not found")
 
 @app.post("/api/manufacturing/slice")
-async def slice_part(file:UploadFile=File(...), selected:str=Form(...), layer_height:float=Form(0.20)):
+async def slice_part(file:UploadFile=File(...), selected:str=Form(...), layer_height:float=Form(0.20), quality:str=Form("balanced"), material:str=Form("PLA"), supports:str=Form("auto"), copies:int=Form(1)):
     if not (0.08 <= layer_height <= 0.4): raise HTTPException(400,"Layer height must be 0.08–0.40 mm")
     source_name, data=await read_selected(file,selected)
     low=source_name.lower()
@@ -107,7 +107,7 @@ async def slice_part(file:UploadFile=File(...), selected:str=Form(...), layer_he
     if not low.endswith(".stl"):
         raise HTTPException(400,"This build slices STL and sends pre-sliced G-code/GX/GCODE.3MF machine packages directly")
     try:
-        gcode,stats=slice_stl(data,Path(source_name).name,layer_height=layer_height)
+        gcode,stats=slice_stl(data,Path(source_name).name,layer_height=layer_height,quality=quality,material=material,supports=supports,copies=copies)
     except Exception as e:
         raise HTTPException(422,f"Slicing failed: {e}")
     out=BASE_DIR/"generated"; out.mkdir(exist_ok=True)
@@ -175,7 +175,7 @@ def bridge_complete(job_id:str, body:BridgeResult):
 
 @app.get("/api/manufacturing/health")
 def manufacturing_health():
-    return {"ok":True,"slicer":"OrcaSlicer","printer_profile":"FlashForge Adventurer 5M",
+    return {"ok":True,"slicer":"UNG-CAD Native Slicer 2","printer_profile":"FlashForge Adventurer 5M",
             "direct_railway_printer_connection":False,"local_bridge_required":True}
 
 @app.get("/api/scenes")
