@@ -42,9 +42,10 @@ def slice_stl(data: bytes, filename: str, layer_height=0.20, nozzle=0.40, wall_c
         trimesh.repair.fill_holes(mesh)
         mesh.remove_unreferenced_vertices()
         mesh.merge_vertices()
-    if not mesh.is_watertight:
-        boundary_count = len(mesh.edges_boundary) if hasattr(mesh, "edges_boundary") else "unknown"
-        raise ValueError(f"Automatic mesh repair could not close this STL (open boundary edges: {boundary_count})")
+    # Some printable CAD exports are intentionally open shells.  If conservative
+    # repair cannot seal them, continue with planar cross-sections rather than
+    # rejecting the entire job; the slicer will still refuse zero/empty layers.
+    open_shell = not mesh.is_watertight
     ext=mesh.extents
     if max(ext[:2]) > bed-10:
         raise ValueError(f"Model XY footprint {max(ext[:2]):.1f} mm exceeds Adventurer 5M 220 mm bed")
@@ -93,4 +94,4 @@ def slice_stl(data: bytes, filename: str, layer_height=0.20, nozzle=0.40, wall_c
     payload=("\n".join(lines)+"\n").encode()
     return payload, {"layers":layer_count,"height_mm":round(float(zmax-zmin),2),
                      "size_xy_mm":[round(float(ext[0]),2),round(float(ext[1]),2)],
-                     "bytes":len(payload),"mesh_repaired":repaired}
+                     "bytes":len(payload),"mesh_repaired":repaired,"open_shell_sliced":open_shell}
