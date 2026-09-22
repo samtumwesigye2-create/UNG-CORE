@@ -7,6 +7,7 @@ from flashforge import FlashForgeClient, FiveMClientConnectionOptions, PrinterDi
 HOST="127.0.0.1"; PORT=8765
 CLOUD=os.getenv("UNG_CAD_CLOUD","https://ung-cad-3d-production.up.railway.app").rstrip("/")
 PRINTER_ID=os.getenv("UNG_CAD_PRINTER_ID","SNMTUF9100669")
+CHECK_CODE=os.getenv("UNG_CAD_CHECK_CODE","").strip()
 BRIDGE_VERSION="2026-09-21-4"
 STATE={"printer":None,"check_code":None}
 
@@ -61,9 +62,25 @@ def cloud_json(path, method="GET", body=None):
     req=urllib.request.Request(CLOUD+path,data=data,method=method,headers={"Content-Type":"application/json"})
     with urllib.request.urlopen(req,timeout=30) as r: return json.loads(r.read() or b"{}")
 
+def ensure_paired():
+    if STATE["check_code"]:
+        return True
+    if not CHECK_CODE:
+        print("Cloud queue: no UNG_CAD_CHECK_CODE set — cannot auto-pair, jobs will fail")
+        return False
+    try:
+        asyncio.run(connect(CHECK_CODE))
+        print("Cloud queue: auto-paired with", STATE["printer"])
+        return True
+    except Exception as e:
+        print("Cloud queue: auto-pair failed:", e)
+        return False
+
 def cloud_worker():
     while True:
         try:
+            if not ensure_paired():
+                time.sleep(5); continue
             q=urllib.parse.urlencode({"printer_id":PRINTER_ID})
             j=cloud_json("/api/bridge/jobs/next?"+q).get("job")
             if j:
