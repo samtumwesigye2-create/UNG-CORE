@@ -25,7 +25,7 @@
 <div class="controls">
 <div class="field"><label>Printable part</label><select id="part" disabled><option>Select package first</option></select></div>
 <div class="field"><label>Layer height (mm)</label><input id="layer" value="0.20" type="number" min="0.08" max="0.40" step="0.02"></div>
-<button class="btn" id="slice" disabled>Slice for AD5M</button>
+<button class="btn" id="slice" disabled>Prepare for AD5M</button>
 </div>
 
 <h2><span class="step">4</span>Send to printer</h2>
@@ -57,6 +57,15 @@ async function selectAndPreview(n,rowEl){
   part.value=n;sliceBtn.disabled=false;
   document.querySelectorAll('.part').forEach(r=>r.classList.remove('active'));
   if(rowEl)rowEl.classList.add('active');
+  const low=n.toLowerCase();
+  if(!low.endsWith('.stl')){
+    previewStats.textContent=low.endsWith('.gcode.3mf')
+      ? 'Machine-ready AD5M package detected. 3D geometry preview is skipped; use Prepare for AD5M, then Print from phone.'
+      : 'Preview is available for STL geometry. This file can still be prepared for the printer.';
+    const ph=document.getElementById('previewPlaceholder');
+    if(ph) ph.textContent='Machine-ready file selected — no STL preview required.';
+    return;
+  }
   previewStats.textContent='Loading geometry…';
   try{
     const bytes=await extractPartBytes(selectedFile,n);
