@@ -64,6 +64,7 @@ from app.core.hardening import production_readiness
 from app.db.base import Base
 from app.db.session import engine
 from app.services.health_poller import health_poll_loop
+from app.services.foundation_checkpoint import checkpoint_loop, checkpoint_runtime, hydrate_runtime_from_db
 from app.services.registry_bootstrap import bootstrap_registry
 from app.services.scheduler import scheduler_loop
 
@@ -75,10 +76,14 @@ async def lifespan(app: FastAPI):
         raise RuntimeError(f"production readiness checks failed: {failed}")
     async with engine.begin() as conn: await conn.run_sync(Base.metadata.create_all)
     app.state.registry_bootstrap = await bootstrap_registry()
+    app.state.foundation_hydrated = await hydrate_runtime_from_db()
     poller = asyncio.create_task(health_poll_loop(max(10, settings.health_poll_interval_seconds))) if settings.health_poll_enabled else None
     scheduler = asyncio.create_task(scheduler_loop(max(1, settings.scheduler_interval_seconds))) if settings.scheduler_enabled else None
+    foundation_checkpoint = asyncio.create_task(checkpoint_loop(max(5, settings.foundation_checkpoint_interval_seconds))) if settings.foundation_checkpoint_enabled else None
     yield
-    for task in (poller, scheduler):
+    with suppress(Exception):
+        await checkpoint_runtime(updated_by="shutdown")
+    for task in (poller, scheduler, foundation_checkpoint):
         if task is not None:
             task.cancel()
             with suppress(asyncio.CancelledError): await task
