@@ -22,11 +22,12 @@ def foundation_acceptance_report(runtime: FoundationRuntime) -> dict:
     restored = hydrate_runtime(cloned, payload)
     add("restart.hydration", restored, "restart-safe state can be serialized and hydrated")
 
-    runtime.observability.increment("acceptance_probe")
-    add("observability.counter", runtime.observability.snapshot()["counters"].get("acceptance_probe", 0) >= 1, "observability counter path is operational")
+    probe = build_foundation_runtime()
+    probe.observability.increment("acceptance_probe")
+    add("observability.counter", probe.observability.snapshot()["counters"].get("acceptance_probe", 0) >= 1, "observability counter path is operational")
 
-    runtime.api_policy.allow_roles("/acceptance", {"admin"})
-    decision = runtime.api_policy.evaluate(RequestContext("acceptance-service", "admin", "/acceptance", 1, "acceptance-trace"), now=1.0)
+    probe.api_policy.allow_roles("/acceptance", {"admin"})
+    decision = probe.api_policy.evaluate(RequestContext("acceptance-service", "admin", "/acceptance", 1, "acceptance-trace"), now=1.0)
     add("api_policy.authorization", decision.allowed, "service identity/RBAC policy accepted an authorized request")
 
     profile = adapter_profile("NEXUS")
