@@ -6,6 +6,9 @@ from pydantic import BaseModel, Field
 from app.api.security import require_permission
 from app.schemas.contracts import Principal
 from app.services.fault_supervisor import FaultSeverity
+from app.services.foundation_acceptance import foundation_acceptance_report
+from app.services.foundation_adapters import adapter_profile, serialize_profile
+from app.services.foundation_checkpoint import checkpoint_runtime
 from app.services.foundation_runtime import foundation_runtime
 from app.services.time_sync import ClockSample
 
@@ -45,7 +48,7 @@ async def time_sync_sample(body: ClockSampleIn, _: Principal = Depends(require_p
     return {"source": status.source, "quality": status.quality.value, "offset_ns": status.offset_ns, "drift_ppm": status.drift_ppm, "uncertainty_ns": status.uncertainty_ns, "age_ms": status.age_ms}
 
 @router.post("/faults")
-async def report_fault(body: FaultIn, _: Principal = Depends(require_permission("ung.core.control.write"))):
+async def report_fault(body: FaultIn, principal: Principal = Depends(require_permission("ung.core.control.write"))):
     severity_map = {"info": FaultSeverity.INFO, "degraded": FaultSeverity.DEGRADED, "critical": FaultSeverity.CRITICAL}
     severity = severity_map.get(body.severity.lower())
     if severity is None:
@@ -53,12 +56,14 @@ async def report_fault(body: FaultIn, _: Principal = Depends(require_permission(
     fault = foundation_runtime.faults.report(body.component, body.code, severity, body.message)
     foundation_runtime.hmi.set_system_mode(foundation_runtime.faults.system_mode())
     foundation_runtime.observability.increment("faults_reported")
+    await checkpoint_runtime(updated_by=principal.subject)
     return {"component": fault.component, "code": fault.code, "severity": fault.severity.name.lower(), "message": fault.message, "system_mode": foundation_runtime.faults.system_mode()}
 
 @router.delete("/faults/{component}/{code}")
-async def clear_fault(component: str, code: str, _: Principal = Depends(require_permission("ung.core.control.write"))):
+async def clear_fault(component: str, code: str, principal: Principal = Depends(require_permission("ung.core.control.write"))):
     cleared = foundation_runtime.faults.clear(component, code)
     foundation_runtime.hmi.set_system_mode(foundation_runtime.faults.system_mode())
+    await checkpoint_runtime(updated_by=principal.subject)
     return {"cleared": cleared, "system_mode": foundation_runtime.faults.system_mode()}
 
 @router.post("/metrics/gauge")
@@ -74,3 +79,13 @@ async def increment_counter(body: CounterIn, _: Principal = Depends(require_perm
 @router.get("/hmi")
 async def hmi_snapshot(_: Principal = Depends(require_permission("ung.core.control.read"))):
     return foundation_runtime.hmi.view()
+
+
+@router.get("/adapters/{system_key}")
+async def foundation_adapter(system_key: str, _: Principal = Depends(require_permission("ung.core.control.read"))):
+    return serialize_profile(adapter_profile(system_key))
+
+
+@router.get("/acceptance")
+async def foundation_acceptance(_: Principal = Depends(require_permission("ung.core.control.read"))):
+    return foundation_acceptance_report(foundation_runtime)
