@@ -13,6 +13,8 @@ class Settings(BaseSettings):
     health_poll_interval_seconds: int = 30
     scheduler_enabled: bool = True
     scheduler_interval_seconds: int = 5
+    foundation_checkpoint_enabled: bool = True
+    foundation_checkpoint_interval_seconds: int = 30
     request_body_limit_bytes: int = 1_048_576
     request_timeout_seconds: int = 30
     security_headers_enabled: bool = True
