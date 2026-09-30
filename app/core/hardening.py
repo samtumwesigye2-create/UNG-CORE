@@ -29,6 +29,9 @@ def production_readiness() -> dict:
     add("request_body_limit", settings.request_body_limit_bytes > 0, "request body limit must be positive")
     add("request_timeout", settings.request_timeout_seconds > 0, "request timeout must be positive")
     add("scheduler_interval", (not settings.scheduler_enabled) or settings.scheduler_interval_seconds >= 1, "scheduler interval must be at least one second")
+    checkpoint_enabled_ok = not production or settings.foundation_checkpoint_enabled
+    add("foundation_checkpoint.enabled", checkpoint_enabled_ok, "foundation checkpointing must be enabled in production" if not checkpoint_enabled_ok else "foundation checkpointing accepted")
+    add("foundation_checkpoint.interval", (not settings.foundation_checkpoint_enabled) or settings.foundation_checkpoint_interval_seconds >= 5, "foundation checkpoint interval must be at least five seconds")
 
     failed = [item for item in checks if not item["ok"]]
     return {"ready": not failed, "environment": settings.environment, "checks": checks, "failed_checks": len(failed)}
