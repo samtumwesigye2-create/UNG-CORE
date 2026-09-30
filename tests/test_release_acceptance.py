@@ -4,7 +4,7 @@ from app.core.hardening import production_readiness
 def test_release_readiness_contract_is_complete():
     result = production_readiness()
     keys = {item["key"] for item in result["checks"]}
-    assert {"database", "dependency.iam.https", "dependency.data_relay.https", "request_body_limit", "request_timeout", "scheduler_interval"} <= keys
+    assert {"database", "dependency.iam.https", "dependency.data_relay.https", "request_body_limit", "request_timeout", "scheduler_interval", "foundation_checkpoint.enabled", "foundation_checkpoint.interval"} <= keys
 
 
 def test_release_readiness_reports_boolean_gate():
