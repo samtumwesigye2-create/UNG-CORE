@@ -1,0 +1,42 @@
+<ung>
+title = "Guestbook"
+include "_header.ung"
+
+problem = ""
+if is_post() then
+  name = trim(form("name"))
+  message = trim(form("message"))
+  if name is "" or message is "" then
+    problem = "Please fill in both your name and a message."
+  else if length(message) > 500 then
+    problem = "Your message is too long (500 letters at most)."
+  else
+    add_record("guestbook", {name: name, message: message})
+    redirect("/guestbook")
+  end
+end
+
+entries = reverse(get_records("guestbook"))
+</ung>
+
+<h1>Guestbook</h1>
+
+<ung> if problem is not "" then </ung>
+  <p class="problem">{{ problem }}</p>
+<ung> end </ung>
+
+<form method="post">
+  <label>Your name <input name="name" value="{{ form("name") }}"></label>
+  <label>Message <textarea name="message" rows="3">{{ form("message") }}</textarea></label>
+  <button>Sign the guestbook</button>
+</form>
+
+<h2>{{ length(entries) }} messages</h2>
+<ung> for each entry in entries </ung>
+  <div class="entry">
+    <b>{{ entry.name }}</b> <small>{{ entry.created }}</small>
+    <p>{{ entry.message }}</p>
+  </div>
+<ung> end </ung>
+
+<ung> include "_footer.ung" </ung>

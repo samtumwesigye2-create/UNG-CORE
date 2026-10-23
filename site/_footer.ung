@@ -1,0 +1,4 @@
+</main>
+<footer>Made with UNG-Script &middot; {{ today() }}</footer>
+</body>
+</html>

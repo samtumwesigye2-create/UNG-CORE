@@ -1,0 +1,38 @@
+<ung>
+# This is the home page. Lines starting with # are notes for people.
+title = "My UNG website"
+include "_header.ung"
+
+# Count visitors, and remember the count even after a restart
+visits = load("visits", 0) + 1
+save("visits", visits)
+
+if hour() < 12 then
+  greeting = "Good morning"
+else if hour() < 17 then
+  greeting = "Good afternoon"
+else
+  greeting = "Good evening"
+end
+
+fruits = ["mango", "banana", "pineapple", "jackfruit"]
+</ung>
+
+<h1>{{ greeting }}!</h1>
+<p>This page was made with <b>UNG-Script</b>. It has been visited <b>{{ visits }}</b> times.</p>
+
+<h2>Fruits I like</h2>
+<ul>
+<ung> for each fruit in fruits </ung>
+  <li>{{ upper(fruit) }}</li>
+<ung> end </ung>
+</ul>
+
+<h2>Times table for 7</h2>
+<ung>
+for i from 1 to 10
+  show_html "<div>7 &times; {i} = <b>{7 * i}</b></div>"
+end
+</ung>
+
+<ung> include "_footer.ung" </ung>
